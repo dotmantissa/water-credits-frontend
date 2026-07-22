@@ -16,7 +16,7 @@ import {
   Activity,
 } from 'lucide-angular';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import {
   DataTableComponent,
   ColumnDef,
@@ -30,6 +30,7 @@ import {
   selectProposalsLoading,
   selectGovernanceConfig,
   selectGovernanceConfigLoading,
+  selectGovernanceError,
 } from '../../../core/store/governance/governance.selectors';
 import { selectCurrentUser } from '../../../core/store/auth/auth.selectors';
 
@@ -46,7 +47,7 @@ import { selectCurrentUser } from '../../../core/store/auth/auth.selectors';
     RouterLink,
     LucideAngularModule,
     StatusBadgeComponent,
-    LoadingSpinnerComponent,
+    LoadingStateComponent,
     DataTableComponent,
     DurationPipe,
     NumberAbbreviatePipe,
@@ -66,87 +67,91 @@ import { selectCurrentUser } from '../../../core/store/auth/auth.selectors';
         </a>
       </div>
 
-      <div *ngIf="loadingConfig$ | async" class="flex justify-center py-8">
-        <app-loading-spinner size="md" label="Loading configuration..."></app-loading-spinner>
-      </div>
-
-      <div
-        *ngIf="(loadingConfig$ | async) === false && (config$ | async) as config"
-        class="grid grid-cols-2 md:grid-cols-4 gap-4"
+      <app-loading-state
+        [loading]="loadingConfig$ | async"
+        [error]="error$ | async"
+        [data]="config$ | async"
+        skeletonType="stat-card"
+        emptyTitle="No configuration"
+        emptyMessage="Governance configuration could not be loaded."
+        retryLabel="Retry"
+        (retry)="loadData()"
       >
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="ScaleIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Protocol Fee</span>
+        <div *ngIf="config$ | async as config" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="ScaleIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Protocol Fee</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.protocolFee }}%
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.protocolFee }}%
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="ClockIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Vote Duration</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="ClockIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Vote Duration</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.voteDuration }}h
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.voteDuration }}h
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="ShieldIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Timelock</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="ShieldIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Timelock</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.timelockDuration }}h
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.timelockDuration }}h
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="TrendingUpIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Quorum</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="TrendingUpIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Quorum</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.quorumThreshold }}%
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.quorumThreshold }}%
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="ActivityIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Oracle Threshold</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="ActivityIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Oracle Threshold</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.minOracleThreshold }}
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.minOracleThreshold }}
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="UsersIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>Quality Penalty</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="UsersIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>Quality Penalty</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.qualityPenaltyWeight }}
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.qualityPenaltyWeight }}
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="VoteIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>N-Removal Weight</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="VoteIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>N-Removal Weight</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.nRemovalWeight }}
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.nRemovalWeight }}
-          </p>
-        </div>
-        <div class="card p-4">
-          <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-            <lucide-angular [img]="VoteIcon" class="w-3.5 h-3.5"></lucide-angular>
-            <span>P-Removal Weight</span>
+          <div class="card p-4">
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <lucide-angular [img]="VoteIcon" class="w-3.5 h-3.5"></lucide-angular>
+              <span>P-Removal Weight</span>
+            </div>
+            <p class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ config.pRemovalWeight }}
+            </p>
           </div>
-          <p class="text-lg font-semibold text-slate-900 dark:text-white">
-            {{ config.pRemovalWeight }}
-          </p>
         </div>
-      </div>
+      </app-loading-state>
 
       <div class="card">
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
@@ -223,6 +228,7 @@ export class GovernanceDashboardComponent implements OnInit {
   protected config$: Observable<GovernanceConfig | null>;
   protected loadingConfig$: Observable<boolean>;
   protected loadingProposals$: Observable<boolean>;
+  protected error$: Observable<string | null>;
   protected filteredProposals$: Observable<Proposal[]>;
   protected selectedTabValue = 'all';
 
@@ -250,6 +256,7 @@ export class GovernanceDashboardComponent implements OnInit {
     this.config$ = this.store.select(selectGovernanceConfig);
     this.loadingConfig$ = this.store.select(selectGovernanceConfigLoading);
     this.loadingProposals$ = this.store.select(selectProposalsLoading);
+    this.error$ = this.store.select(selectGovernanceError);
 
     // Filtering is purely client-side; no re-fetch needed on tab change.
     this.filteredProposals$ = combineLatest([
@@ -272,6 +279,10 @@ export class GovernanceDashboardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadData();
+  }
+
+  loadData(): void {
     this.store.dispatch(GovernanceActions.loadConfig());
     this.store.dispatch(GovernanceActions.loadProposals({ params: { limit: 50 } }));
   }

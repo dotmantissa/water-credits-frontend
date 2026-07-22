@@ -5,6 +5,7 @@ import { Observable, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
+import { SkeletonLoaderComponent } from '../../../shared/components/skeleton-loader/skeleton-loader';
 import { WebsocketService } from '../../../core/services/websocket.service';
 import { AnalyticsOverview, CreditsOverTimePoint } from '../../../core/models/analytics.model';
 import { RecentRetirement } from '../../../core/models/retirement.model';
@@ -37,6 +38,7 @@ import {
     AsyncPipe,
     CreditAmountPipe,
     DateFormatPipe,
+    SkeletonLoaderComponent,
     LucideAngularModule,
   ],
   template: `
@@ -57,11 +59,7 @@ import {
         </div>
       </div>
 
-      <div *ngIf="loading$ | async" class="flex items-center justify-center py-20">
-        <div
-          class="animate-spin w-8 h-8 border-2 border-stellar-blue border-t-transparent rounded-full"
-        ></div>
-      </div>
+      <app-skeleton-loader *ngIf="loading$ | async" type="stat-card"></app-skeleton-loader>
 
       <ng-container *ngIf="!(loading$ | async)">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

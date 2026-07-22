@@ -13,7 +13,7 @@ import {
 } from '../../../shared/components/data-table/data-table.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
-import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
+import { SkeletonLoaderComponent } from '../../../shared/components/skeleton-loader/skeleton-loader';
 import {
   SensorChartComponent,
   ChartSeries,
@@ -96,7 +96,7 @@ const STATUS_THRESHOLDS: Record<string, { good: [number, number]; warning: [numb
     DataTableComponent,
     StatusBadgeComponent,
     EmptyStateComponent,
-    LoadingSpinnerComponent,
+    SkeletonLoaderComponent,
     SensorChartComponent,
     DateFormatPipe,
     NumberAbbreviatePipe,
@@ -147,7 +147,7 @@ const STATUS_THRESHOLDS: Record<string, { good: [number, number]; warning: [numb
       </div>
 
       <div *ngIf="loading" class="flex items-center justify-center py-20">
-        <app-loading-spinner size="lg" label="Loading sensor data..."></app-loading-spinner>
+        <app-skeleton-loader type="stat-card"></app-skeleton-loader>
       </div>
 
       <ng-container *ngIf="!loading">
