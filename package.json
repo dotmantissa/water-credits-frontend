@@ -62,6 +62,8 @@
     "lucide-angular": "1.0.0",
     "ng2-charts": "^10.0.0",
     "ngx-leaflet": "^0.0.16",
+    "pdfmake": "^0.3.11",
+    "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
     "socket.io-client": "^4.8.3",
     "tslib": "^2.3.0"
@@ -78,6 +80,8 @@
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
     "@types/node": "^25.9.3",
+    "@types/pdfmake": "^0.3.3",
+    "@types/qrcode": "^1.5.6",
     "@vitest/coverage-v8": "^4.1.10",
     "angular-eslint": "^21.4.0",
     "autoprefixer": "^10.5.0",

@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Printer,
+  Download,
   Award,
   Droplets,
   Hash,
@@ -17,6 +18,7 @@ import { Store } from '@ngrx/store';
 import { Observable } from 'rxjs';
 
 import { RetirementCertificate } from '../../../core/models/retirement.model';
+import { CertificatePdfService } from '../../../core/services/certificate-pdf.service';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
 import { StellarAddressPipe } from '../../../shared/pipes/stellar-address.pipe';
@@ -197,13 +199,23 @@ import {
             <p class="text-xs text-slate-400">
               Water Credits &mdash; Verified Carbon Credit Platform
             </p>
-            <button
-              (click)="printCertificate()"
-              class="btn btn-outline flex items-center gap-2 text-sm"
-            >
-              <lucide-angular [img]="Printer" class="w-4 h-4"></lucide-angular>
-              Print / Download
-            </button>
+            <div class="flex items-center gap-3">
+              <button
+                (click)="printCertificate()"
+                class="btn btn-outline flex items-center gap-2 text-sm"
+              >
+                <lucide-angular [img]="Printer" class="w-4 h-4"></lucide-angular>
+                Print
+              </button>
+              <button
+                (click)="downloadCertificate(cert)"
+                [disabled]="downloading"
+                class="btn btn-primary flex items-center gap-2 text-sm"
+              >
+                <lucide-angular [img]="Download" class="w-4 h-4"></lucide-angular>
+                {{ downloading ? 'Generating...' : 'Download PDF' }}
+              </button>
+            </div>
           </div>
         </ng-container>
       </div>
@@ -235,9 +247,12 @@ export class RetirementCertificateComponent implements OnInit {
   protected cert$: Observable<RetirementCertificate | null>;
   protected loading$: Observable<boolean>;
 
+  protected downloading = false;
+
   protected readonly ArrowLeft = ArrowLeft;
   protected readonly ExternalLink = ExternalLink;
   protected readonly Printer = Printer;
+  protected readonly Download = Download;
   protected readonly Award = Award;
   protected readonly Droplets = Droplets;
   protected readonly Hash = Hash;
@@ -248,6 +263,7 @@ export class RetirementCertificateComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private store: Store,
+    private certPdf: CertificatePdfService,
   ) {
     this.cert$ = this.store.select(selectRetirementCertificate);
     this.loading$ = this.store.select(selectRetirementLoading);
@@ -262,5 +278,15 @@ export class RetirementCertificateComponent implements OnInit {
 
   protected printCertificate(): void {
     window.print();
+  }
+
+  protected async downloadCertificate(cert: RetirementCertificate): Promise<void> {
+    if (this.downloading) return;
+    this.downloading = true;
+    try {
+      await this.certPdf.generate(cert);
+    } finally {
+      this.downloading = false;
+    }
   }
 }
