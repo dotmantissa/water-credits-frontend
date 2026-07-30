@@ -15,40 +15,46 @@ describe('SkeletonLoaderComponent', () => {
   });
 
   it('should create', () => {
+    fixture.detectChanges();
     expect(component).toBeTruthy();
   });
 
-  it('should default to card type', () => {
-    expect(component.type).toBe('card');
+  it('should default to card variant', () => {
+    fixture.detectChanges();
+    expect(component.variant).toBe('card');
+  });
+
+  it('should render card skeleton by default', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.card')).toBeTruthy();
+    expect(el.querySelector('.skeleton')).toBeTruthy();
   });
 
   it('should render stat-card skeleton', () => {
-    component.type = 'stat-card';
+    component.variant = 'stat-card';
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelectorAll('.card').length).toBe(4);
-  });
-
-  it('should render card skeleton', () => {
-    component.type = 'card';
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelectorAll('.card').length).toBe(6);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.card')).toBeTruthy();
+    expect(el.querySelector('.skeleton')).toBeTruthy();
   });
 
   it('should render table skeleton', () => {
-    component.type = 'table';
+    component.variant = 'table';
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.card')).toBeTruthy();
-    expect(compiled.querySelectorAll('.flex.items-center.gap-4').length).toBe(5);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('table')).toBeTruthy();
   });
 
   it('should render chart skeleton', () => {
-    component.type = 'chart';
+    component.variant = 'chart';
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.card')).toBeTruthy();
-    expect(compiled.querySelectorAll('.flex-1.bg-slate-200').length).toBe(12);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.card')).toBeTruthy();
+    expect(el.querySelector('.skeleton')).toBeTruthy();
   });
 });

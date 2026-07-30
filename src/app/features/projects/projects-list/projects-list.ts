@@ -9,6 +9,7 @@ import {
 } from '../../../shared/components/data-table/data-table.component';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { SearchInputComponent } from '../../../shared/components/search-input/search-input';
+import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
 import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import { Project, ProjectFilters } from '../../../core/models/project.model';
 import * as ProjectsActions from '../../../core/store/projects/projects.actions';
@@ -31,6 +32,7 @@ import { LucideAngularModule, Plus, LayoutGrid, Table2 } from 'lucide-angular';
     DataTableComponent,
     StatusBadgeComponent,
     SearchInputComponent,
+    EmptyStateComponent,
     LoadingStateComponent,
     LucideAngularModule,
   ],
@@ -101,41 +103,46 @@ import { LucideAngularModule, Plus, LayoutGrid, Table2 } from 'lucide-angular';
         />
       </div>
 
-      <app-loading-state
-        *ngIf="viewMode === 'grid'"
-        [loading]="loading$ | async"
-        [error]="error$ | async"
-        [data]="projects$ | async"
-        skeletonType="card"
-        emptyTitle="No projects found"
-        emptyMessage="Get started by creating your first water credit project."
-      >
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div
-            *ngFor="let project of projects$ | async"
-            (click)="goToProject(project)"
-            class="card p-5 cursor-pointer hover:shadow-lg transition-shadow"
-          >
-            <div class="flex items-start justify-between mb-3">
-              <h3 class="font-semibold text-slate-900 dark:text-white">{{ project.name }}</h3>
-              <app-status-badge [status]="project.status"></app-status-badge>
+      <div *ngIf="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="col-span-full">
+          <app-loading-state
+            [loading]="(loading$ | async) ?? false"
+            skeleton="card"
+            loadingLabel="Loading projects..."
+          ></app-loading-state>
+        </div>
+        <ng-container *ngIf="!(projects$ | async)?.length">
+          <div class="col-span-full">
+            <app-empty-state
+              title="No projects found"
+              message="Get started by creating your first water credit project."
+            ></app-empty-state>
+          </div>
+        </ng-container>
+        <div
+          *ngFor="let project of projects$ | async"
+          (click)="goToProject(project)"
+          class="card p-5 cursor-pointer hover:shadow-lg transition-shadow"
+        >
+          <div class="flex items-start justify-between mb-3">
+            <h3 class="font-semibold text-slate-900 dark:text-white">{{ project.name }}</h3>
+            <app-status-badge [status]="project.status"></app-status-badge>
+          </div>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">
+            {{ project.description }}
+          </p>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span class="text-slate-400">Area:</span>
+              <span class="font-medium">{{ project.areaHectares }} ha</span>
             </div>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">
-              {{ project.description }}
-            </p>
-            <div class="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span class="text-slate-400">Area:</span>
-                <span class="font-medium">{{ project.areaHectares }} ha</span>
-              </div>
-              <div>
-                <span class="text-slate-400">Methodology:</span>
-                <span class="font-medium">{{ project.methodology }}</span>
-              </div>
+            <div>
+              <span class="text-slate-400">Methodology:</span>
+              <span class="font-medium">{{ project.methodology }}</span>
             </div>
           </div>
         </div>
-      </app-loading-state>
+      </div>
     </div>
   `,
 })

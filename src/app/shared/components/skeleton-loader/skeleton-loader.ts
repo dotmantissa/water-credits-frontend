@@ -1,58 +1,81 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { NgIf, NgFor } from '@angular/common';
 
 @Component({
   selector: 'app-skeleton-loader',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgIf, NgFor],
   template: `
-    <div *ngIf="type === 'stat-card'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div *ngFor="let i of [1, 2, 3, 4]" class="card p-5 animate-pulse">
-        <div class="flex items-center justify-between mb-3">
-          <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-20"></div>
-          <div class="w-9 h-9 rounded-lg bg-slate-200 dark:bg-slate-700"></div>
-        </div>
-        <div class="h-7 bg-slate-200 dark:bg-slate-700 rounded w-24 mb-2"></div>
-        <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+    <!-- Stat Card Skeleton -->
+    <div *ngIf="variant === 'stat-card'" class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="skeleton h-3 w-24 rounded"></div>
+        <div class="skeleton h-9 w-9 rounded-lg"></div>
       </div>
+      <div class="skeleton h-7 w-20 rounded mb-1"></div>
+      <div class="skeleton h-3 w-16 rounded"></div>
     </div>
 
-    <div *ngIf="type === 'card'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="card p-5 animate-pulse">
-        <div class="flex items-start justify-between mb-3">
-          <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-          <div class="h-5 bg-slate-200 dark:bg-slate-700 rounded-full w-16"></div>
-        </div>
-        <div class="space-y-2 mb-3">
-          <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
-          <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded"></div>
-          <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded"></div>
-        </div>
+    <!-- Card Skeleton -->
+    <div *ngIf="variant === 'card'" class="card p-5">
+      <div class="flex items-start justify-between mb-3">
+        <div class="skeleton h-5 w-32 rounded"></div>
+        <div class="skeleton h-5 w-16 rounded-full"></div>
       </div>
-    </div>
-
-    <div *ngIf="type === 'table'" class="card animate-pulse overflow-hidden">
-      <div class="p-5 space-y-4">
-        <div *ngFor="let i of [1, 2, 3, 4, 5]" class="flex items-center gap-4">
-          <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded flex-[3]"></div>
-          <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded flex-[1]"></div>
-          <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded flex-[2]"></div>
-          <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded flex-[1]"></div>
+      <div class="space-y-2 mb-4">
+        <div class="skeleton h-3 w-full rounded"></div>
+        <div class="skeleton h-3 w-3/4 rounded"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="skeleton h-3 w-10 rounded mb-1"></div>
+          <div class="skeleton h-3 w-16 rounded"></div>
+        </div>
+        <div>
+          <div class="skeleton h-3 w-16 rounded mb-1"></div>
+          <div class="skeleton h-3 w-20 rounded"></div>
         </div>
       </div>
     </div>
 
-    <div *ngIf="type === 'chart'" class="card p-5 animate-pulse">
-      <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 mb-6"></div>
-      <div class="flex items-end gap-2 h-48">
-        <div
-          *ngFor="let h of [60, 80, 45, 90, 70, 55, 85, 65, 75, 50, 88, 72]"
-          class="flex-1 bg-slate-200 dark:bg-slate-700 rounded-t"
-          [style.height.%]="h"
-        ></div>
+    <!-- Table Skeleton -->
+    <div *ngIf="variant === 'table'" class="card overflow-hidden">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-3">
+          <div class="skeleton h-8 flex-1 rounded"></div>
+          <div class="skeleton h-8 w-20 rounded"></div>
+        </div>
+      </div>
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-slate-200 dark:border-slate-700">
+            <th *ngFor="let col of tableColumns" class="text-left px-4 py-3">
+              <div class="skeleton h-3 rounded" [style.width]="col + 'px'"></div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let r of rowArray"
+            class="border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+          >
+            <td *ngFor="let col of tableColumns" class="px-4 py-3">
+              <div class="skeleton h-4 rounded" [style.width]="col - 20 + 'px'"></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Chart Skeleton -->
+    <div *ngIf="variant === 'chart'" class="card p-5">
+      <div class="skeleton h-5 w-40 rounded mb-4"></div>
+      <div class="flex items-end gap-1" [style.height.px]="height">
+        <div *ngFor="let bar of bars" class="flex-1 flex flex-col justify-end gap-0.5">
+          <div class="skeleton rounded-t w-full" [style.height.%]="bar"></div>
+          <div class="skeleton h-2 w-full rounded"></div>
+        </div>
       </div>
     </div>
   `,
@@ -61,9 +84,55 @@ import { NgIf, NgFor } from '@angular/common';
       :host {
         display: contents;
       }
+
+      .skeleton {
+        background: linear-gradient(
+          90deg,
+          rgb(226 232 240 / 0.6) 25%,
+          rgb(226 232 240 / 0.3) 50%,
+          rgb(226 232 240 / 0.6) 75%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+      }
+
+      :host-context(.dark) .skeleton {
+        background: linear-gradient(
+          90deg,
+          rgb(51 65 85 / 0.6) 25%,
+          rgb(51 65 85 / 0.3) 50%,
+          rgb(51 65 85 / 0.6) 75%
+        );
+        background-size: 200% 100%;
+      }
+
+      @keyframes skeleton-pulse {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
     `,
   ],
 })
 export class SkeletonLoaderComponent {
-  @Input() type: 'stat-card' | 'card' | 'table' | 'chart' = 'card';
+  @Input() variant: 'stat-card' | 'card' | 'table' | 'chart' = 'card';
+  @Input() rows = 5;
+  @Input() height = 256;
+
+  protected readonly tableColumns = [120, 100, 80, 60, 90];
+  protected readonly bars = [60, 45, 80, 35, 70, 50, 65, 40, 75, 55, 85, 30];
+
+  private _cachedRows = -1;
+  private _rowArray: unknown[] = [];
+
+  get rowArray(): unknown[] {
+    if (this._cachedRows !== this.rows) {
+      this._cachedRows = this.rows;
+      this._rowArray = Array.from({ length: this.rows });
+    }
+    return this._rowArray;
+  }
 }

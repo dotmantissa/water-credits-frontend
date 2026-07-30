@@ -1,53 +1,71 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { NgIf } from '@angular/common';
+import { LucideAngularModule, AlertTriangle, RefreshCw } from 'lucide-angular';
 import { SkeletonLoaderComponent } from '../skeleton-loader/skeleton-loader';
 import { EmptyStateComponent } from '../empty-state/empty-state';
 
 @Component({
   selector: 'app-loading-state',
   standalone: true,
-  imports: [NgIf, SkeletonLoaderComponent, EmptyStateComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgIf, LucideAngularModule, SkeletonLoaderComponent, EmptyStateComponent],
   template: `
-    <app-skeleton-loader *ngIf="!!loading" [type]="skeletonType"></app-skeleton-loader>
+    <!-- Loading: skeleton or spinner -->
+    <div *ngIf="loading">
+      <ng-container *ngIf="skeleton; else spinnerBlock">
+        <app-skeleton-loader [variant]="skeleton" [rows]="skeletonRows"></app-skeleton-loader>
+      </ng-container>
+      <ng-template #spinnerBlock>
+        <div class="flex items-center justify-center py-20">
+          <div class="flex flex-col items-center gap-2">
+            <div
+              class="animate-spin w-8 h-8 border-2 border-stellar-blue border-t-transparent rounded-full"
+            ></div>
+            <span *ngIf="loadingLabel" class="text-sm text-slate-500">{{ loadingLabel }}</span>
+          </div>
+        </div>
+      </ng-template>
+    </div>
 
+    <!-- Error -->
     <div
       *ngIf="!loading && error"
       class="card p-5 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10"
     >
-      <p class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
-      <button *ngIf="retryLabel" (click)="retry.emit()" class="btn btn-sm btn-outline mt-2">
-        {{ retryLabel }}
+      <div class="flex items-center gap-2 mb-2">
+        <lucide-angular [img]="AlertTriangleIcon" class="w-4 h-4 text-red-500"></lucide-angular>
+        <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ error }}</p>
+      </div>
+      <button (click)="retry.emit()" class="btn btn-sm btn-outline mt-1 flex items-center gap-1.5">
+        <lucide-angular [img]="RefreshCwIcon" class="w-3.5 h-3.5"></lucide-angular>
+        Retry
       </button>
     </div>
 
+    <!-- Empty (no data, not loading, not error) -->
     <app-empty-state
-      *ngIf="!loading && !error && !hasData"
+      *ngIf="!loading && !error && empty"
       [title]="emptyTitle"
       [message]="emptyMessage"
     ></app-empty-state>
 
-    <ng-content *ngIf="!loading && !error && hasData"></ng-content>
+    <!-- Content -->
+    <ng-container *ngIf="!loading && !error && !empty">
+      <ng-content></ng-content>
+    </ng-container>
   `,
-  styles: [
-    `
-      :host {
-        display: contents;
-      }
-    `,
-  ],
 })
 export class LoadingStateComponent {
-  @Input() loading: boolean | null = false;
+  @Input() loading = false;
   @Input() error: string | null = null;
-  @Input() data: unknown = null;
-  @Input() skeletonType: 'stat-card' | 'card' | 'table' | 'chart' = 'card';
+  @Input() empty = false;
   @Input() emptyTitle = 'Nothing here yet';
   @Input() emptyMessage = '';
-  @Input() retryLabel = '';
+  @Input() skeleton: 'stat-card' | 'card' | 'table' | 'chart' | '' = '';
+  @Input() skeletonRows = 5;
+  @Input() loadingLabel = '';
   @Output() retry = new EventEmitter<void>();
 
-  get hasData(): boolean {
-    if (Array.isArray(this.data)) return this.data.length > 0;
-    return this.data != null;
-  }
+  protected readonly AlertTriangleIcon = AlertTriangle;
+  protected readonly RefreshCwIcon = RefreshCw;
 }

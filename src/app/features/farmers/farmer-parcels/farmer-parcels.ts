@@ -193,13 +193,12 @@ import {
       </div>
 
       <app-loading-state
-        [loading]="loading$ | async"
+        [loading]="(loading$ | async) ?? false"
         [error]="error$ | async"
-        [data]="parcels$ | async"
-        skeletonType="card"
+        [empty]="!(parcels$ | async)?.length"
+        skeleton="card"
         emptyTitle="No parcels registered"
         emptyMessage="Register your first farmland parcel to start earning water quality credits."
-        retryLabel="Retry"
         (retry)="loadParcels()"
       >
         <div

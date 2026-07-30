@@ -68,13 +68,12 @@ import { selectCurrentUser } from '../../../core/store/auth/auth.selectors';
       </div>
 
       <app-loading-state
-        [loading]="loadingConfig$ | async"
+        [loading]="(loadingConfig$ | async) ?? false"
         [error]="error$ | async"
-        [data]="config$ | async"
-        skeletonType="stat-card"
+        [empty]="!(config$ | async)"
+        skeleton="stat-card"
         emptyTitle="No configuration"
         emptyMessage="Governance configuration could not be loaded."
-        retryLabel="Retry"
         (retry)="loadData()"
       >
         <div *ngIf="config$ | async as config" class="grid grid-cols-2 md:grid-cols-4 gap-4">

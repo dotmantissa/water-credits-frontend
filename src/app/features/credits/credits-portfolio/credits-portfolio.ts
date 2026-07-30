@@ -87,13 +87,12 @@ import {
       </div>
 
       <app-loading-state
-        [loading]="loading$ | async"
+        [loading]="(loading$ | async) ?? false"
         [error]="error$ | async"
-        [data]="portfolio$ | async"
-        skeletonType="stat-card"
+        [empty]="!((loading$ | async) || (error$ | async)) && (portfolio$ | async) === null"
         emptyTitle="No portfolio data"
         emptyMessage="We couldn't load your credit portfolio. Try refreshing."
-        retryLabel="Refresh"
+        skeleton="stat-card"
         (retry)="refresh()"
       >
         <div *ngIf="portfolio$ | async as portfolio">

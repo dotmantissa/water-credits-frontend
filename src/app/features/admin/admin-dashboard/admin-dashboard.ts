@@ -14,6 +14,7 @@ import {
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import { AnalyticsOverview } from '../../../core/models/analytics.model';
 import { OracleSubmission } from '../../../core/models/oracle.model';
 import { AppState } from '../../../core/store/app.state';
@@ -55,6 +56,7 @@ import { LoggingService } from '../../../core/services/logging.service';
     StatusBadgeComponent,
     LoadingSpinnerComponent,
     EmptyStateComponent,
+    LoadingStateComponent,
     LucideAngularModule,
   ],
   template: `
@@ -72,21 +74,13 @@ import { LoggingService } from '../../../core/services/logging.service';
         </button>
       </div>
 
-      <app-loading-spinner
-        *ngIf="loading$ | async"
-        size="lg"
-        label="Loading admin overview..."
-      ></app-loading-spinner>
-
-      <div
-        *ngIf="(error$ | async) && !(loading$ | async)"
-        class="card p-5 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10"
+      <app-loading-state
+        [loading]="(loading$ | async) ?? false"
+        [error]="error$ | async"
+        [empty]="false"
+        skeleton="stat-card"
+        (retry)="refresh()"
       >
-        <p class="text-sm text-red-600 dark:text-red-400">{{ error$ | async }}</p>
-        <button (click)="refresh()" class="btn btn-sm btn-outline mt-2">Retry</button>
-      </div>
-
-      <ng-container *ngIf="!(loading$ | async)">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
@@ -320,7 +314,7 @@ import { LoggingService } from '../../../core/services/logging.service';
             </ng-template>
           </app-data-table>
         </div>
-      </ng-container>
+      </app-loading-state>
     </div>
   `,
 })

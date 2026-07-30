@@ -6,6 +6,7 @@ import { Observable, Subject } from 'rxjs';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
 import { NumberAbbreviatePipe } from '../../../shared/pipes/number-abbreviate.pipe';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import { AnalyticsOverview } from '../../../core/models/analytics.model';
 import { Project } from '../../../core/models/project.model';
 import { AppState } from '../../../core/store/app.state';
@@ -14,9 +15,11 @@ import {
   selectParcels,
   selectFarmerOverview,
   selectParcelsLoading,
+  selectFarmersError,
   selectActiveParcelsCount,
   selectTotalAreaHectares,
 } from '../../../core/store/farmers/farmers.selectors';
+import { selectLoadingState, LoadingState } from '../../../shared/store/loading-state.selector';
 import {
   LucideAngularModule,
   Droplets,
@@ -42,6 +45,7 @@ import {
     CreditAmountPipe,
     NumberAbbreviatePipe,
     StatusBadgeComponent,
+    LoadingStateComponent,
     LucideAngularModule,
   ],
   template: `
@@ -55,13 +59,14 @@ import {
         </div>
       </div>
 
-      <div *ngIf="loading$ | async" class="flex items-center justify-center py-20">
-        <div
-          class="animate-spin w-8 h-8 border-2 border-stellar-blue border-t-transparent rounded-full"
-        ></div>
-      </div>
-
-      <ng-container *ngIf="!(loading$ | async)">
+      <app-loading-state
+        *ngIf="state$ | async as state"
+        [loading]="state.loading"
+        [error]="state.error"
+        [empty]="false"
+        skeleton="stat-card"
+        (retry)="loadData()"
+      >
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
@@ -279,18 +284,18 @@ import {
             </div>
           </a>
         </div>
-      </ng-container>
+      </app-loading-state>
     </div>
   `,
 })
 export class FarmerDashboardComponent implements OnInit, OnDestroy {
-  protected loading$: Observable<boolean>;
+  protected state$: Observable<LoadingState>;
   protected overview$: Observable<AnalyticsOverview | null>;
   protected parcels$: Observable<Project[]>;
   protected activeParcelsCount$: Observable<number>;
   protected totalAreaHectares$: Observable<number>;
 
-  protected bmps: { name: string; enrolled: boolean; estimatedCredits: number }[] = [
+  protected bmps = [
     { name: 'Cover Crops', enrolled: true, estimatedCredits: 120 },
     { name: 'No-Till Farming', enrolled: true, estimatedCredits: 85 },
     { name: 'Buffer Strips', enrolled: false, estimatedCredits: 200 },
@@ -311,7 +316,9 @@ export class FarmerDashboardComponent implements OnInit, OnDestroy {
   protected readonly Trees = Trees;
 
   constructor(private store: Store<AppState>) {
-    this.loading$ = this.store.select(selectParcelsLoading);
+    this.state$ = this.store.select(
+      selectLoadingState(selectParcelsLoading, selectFarmersError, selectParcels),
+    );
     this.overview$ = this.store.select(selectFarmerOverview);
     this.parcels$ = this.store.select(selectParcels);
     this.activeParcelsCount$ = this.store.select(selectActiveParcelsCount);
@@ -319,13 +326,17 @@ export class FarmerDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.store.dispatch(FarmersActions.loadParcels());
-    this.store.dispatch(FarmersActions.loadFarmerOverview());
+    this.loadData();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  protected loadData(): void {
+    this.store.dispatch(FarmersActions.loadParcels());
+    this.store.dispatch(FarmersActions.loadFarmerOverview());
   }
 
   get enrolledBmps(): number {

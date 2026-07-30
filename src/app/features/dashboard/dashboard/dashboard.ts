@@ -5,7 +5,6 @@ import { Observable, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
-import { SkeletonLoaderComponent } from '../../../shared/components/skeleton-loader/skeleton-loader';
 import { WebsocketService } from '../../../core/services/websocket.service';
 import { AnalyticsOverview, CreditsOverTimePoint } from '../../../core/models/analytics.model';
 import { RecentRetirement } from '../../../core/models/retirement.model';
@@ -16,8 +15,11 @@ import {
   selectCreditsOverTime,
   selectRecentRetirements,
   selectDashboardLoading,
+  selectAnalyticsError,
 } from '../../../core/store/analytics/analytics.selectors';
 import { AppState } from '../../../core/store/app.state';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
+import { selectLoadingState } from '../../../shared/store/loading-state.selector';
 import {
   LucideAngularModule,
   Droplets,
@@ -38,8 +40,8 @@ import {
     AsyncPipe,
     CreditAmountPipe,
     DateFormatPipe,
-    SkeletonLoaderComponent,
     LucideAngularModule,
+    LoadingStateComponent,
   ],
   template: `
     <div class="space-y-6">
@@ -59,9 +61,14 @@ import {
         </div>
       </div>
 
-      <app-skeleton-loader *ngIf="loading$ | async" type="stat-card"></app-skeleton-loader>
-
-      <ng-container *ngIf="!(loading$ | async)">
+      <app-loading-state
+        *ngIf="dashboardState$ | async as state"
+        [loading]="state.loading"
+        [error]="state.error"
+        [empty]="false"
+        skeleton="stat-card"
+        (retry)="retryLoad()"
+      >
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
@@ -238,17 +245,20 @@ import {
             </div>
           </div>
         </div>
-      </ng-container>
+      </app-loading-state>
     </div>
   `,
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  protected loading$: Observable<boolean>;
   protected overview$: Observable<AnalyticsOverview | null>;
   protected creditsOverTime$: Observable<CreditsOverTimePoint[]>;
   protected recentRetirements$: Observable<RecentRetirement[]>;
-  /** Accumulates live WebSocket alerts into an array (max 5); reset on destroy. */
   protected sensorAlerts$!: Observable<SensorAlert[]>;
+  protected dashboardState$: Observable<{
+    loading: boolean;
+    error: string | null;
+    hasData: boolean;
+  }>;
   protected wsConnected = false;
 
   private destroy$ = new Subject<void>();
@@ -265,13 +275,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private store: Store<AppState>,
     private wsService: WebsocketService,
   ) {
-    this.loading$ = this.store.select(selectDashboardLoading);
     this.overview$ = this.store.select(selectAnalyticsOverview);
     this.creditsOverTime$ = this.store.select(selectCreditsOverTime);
     this.recentRetirements$ = this.store.select(selectRecentRetirements);
+    this.dashboardState$ = this.store.select(
+      selectLoadingState(selectDashboardLoading, selectAnalyticsError, selectAnalyticsOverview),
+    );
 
-    // Accumulate live alerts in a local array; reset when component destroys.
-    // Initialized here (not as a class field) so wsService is available.
     this.sensorAlerts$ = new Observable<SensorAlert[]>((observer) => {
       const alerts: SensorAlert[] = [];
       const sub = this.wsService.sensorAlerts$.subscribe((alert) => {
@@ -289,12 +299,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       next: (connected) => (this.wsConnected = connected),
     });
 
-    // Dispatch all three data loads; effects handle deduplication via switchMap
     this.store.dispatch(AnalyticsActions.loadAnalyticsOverview());
     this.store.dispatch(AnalyticsActions.loadCreditsOverTime({ days: 30 }));
     this.store.dispatch(AnalyticsActions.loadRecentRetirements());
 
-    // Keep chart max in sync whenever the data changes
     this.creditsOverTime$.pipe(takeUntil(this.destroy$)).subscribe((points) => {
       this.chartMax = Math.max(...points.map((p) => Math.max(p.minted, p.retired)), 1);
     });
@@ -311,5 +319,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   getRetiredHeight(point: CreditsOverTimePoint): number {
     return (point.retired / this.chartMax) * 200;
+  }
+
+  protected retryLoad(): void {
+    this.store.dispatch(AnalyticsActions.loadAnalyticsOverview());
+    this.store.dispatch(AnalyticsActions.loadCreditsOverTime({ days: 30 }));
+    this.store.dispatch(AnalyticsActions.loadRecentRetirements());
   }
 }

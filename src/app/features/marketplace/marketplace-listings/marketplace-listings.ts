@@ -88,13 +88,12 @@ import { NumberAbbreviatePipe } from '../../../shared/pipes/number-abbreviate.pi
       </div>
 
       <app-loading-state
-        [loading]="loading$ | async"
+        [loading]="(loading$ | async) ?? false"
         [error]="error$ | async"
-        [data]="listings$ | async"
-        skeletonType="table"
+        [empty]="!((loading$ | async) || (error$ | async)) && (listings$ | async)?.length === 0"
         emptyTitle="No listings found"
         emptyMessage="There are no marketplace listings matching your criteria."
-        retryLabel="Retry"
+        skeleton="table"
         (retry)="reload()"
       >
         <app-data-table

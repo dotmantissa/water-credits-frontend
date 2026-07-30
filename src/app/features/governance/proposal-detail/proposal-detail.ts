@@ -55,13 +55,12 @@ import {
       </a>
 
       <app-loading-state
-        [loading]="loading$ | async"
+        [loading]="(loading$ | async) ?? false"
         [error]="error$ | async"
-        [data]="proposal$ | async"
-        skeletonType="card"
+        [empty]="!(proposal$ | async)"
+        skeleton="card"
         emptyTitle="Proposal not found"
         emptyMessage="The proposal you're looking for doesn't exist or has been removed."
-        retryLabel="Retry"
         (retry)="loadProposal()"
       >
         <div *ngIf="proposal$ | async as proposal" class="space-y-6">
