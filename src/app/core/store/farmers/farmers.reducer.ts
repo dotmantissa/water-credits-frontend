@@ -1,5 +1,6 @@
 import { createReducer, on } from '@ngrx/store';
 import * as FarmersActions from './farmers.actions';
+import * as AuthActions from '../auth/auth.actions';
 import { Project } from '../../models/project.model';
 import { AnalyticsOverview } from '../../models/analytics.model';
 
@@ -11,6 +12,8 @@ export interface FarmersState {
   loadingOverview: boolean;
   /** True while a parcel registration is in flight. */
   registering: boolean;
+  /** Timestamp (ms) of the last successful parcels fetch, for cache expiration checks. */
+  lastFetched: number | null;
   error: string | null;
 }
 
@@ -20,13 +23,13 @@ const initialState: FarmersState = {
   loadingParcels: false,
   loadingOverview: false,
   registering: false,
+  lastFetched: null,
   error: null,
 };
 
 export const farmersReducer = createReducer(
   initialState,
 
-  // ── Load Parcels ────────────────────────────────────────────────────────────
   on(FarmersActions.loadParcels, (state) => ({
     ...state,
     loadingParcels: true,
@@ -36,6 +39,7 @@ export const farmersReducer = createReducer(
     ...state,
     loadingParcels: false,
     parcels,
+    lastFetched: Date.now(),
   })),
   on(FarmersActions.loadParcelsFailure, (state, { error }) => ({
     ...state,
@@ -43,7 +47,6 @@ export const farmersReducer = createReducer(
     error,
   })),
 
-  // ── Register Parcel ─────────────────────────────────────────────────────────
   on(FarmersActions.registerParcel, (state) => ({
     ...state,
     registering: true,
@@ -60,7 +63,6 @@ export const farmersReducer = createReducer(
     error,
   })),
 
-  // ── Farmer Overview ─────────────────────────────────────────────────────────
   on(FarmersActions.loadFarmerOverview, (state) => ({
     ...state,
     loadingOverview: true,
@@ -76,4 +78,6 @@ export const farmersReducer = createReducer(
     loadingOverview: false,
     error,
   })),
+  // Full cache reset on forced logout, per the cache-invalidation strategy.
+  on(AuthActions.forceLogout, () => initialState),
 );

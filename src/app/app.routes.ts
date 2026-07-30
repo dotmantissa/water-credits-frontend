@@ -1,16 +1,13 @@
 import { Routes } from '@angular/router';
 import { AuthGuard } from './core/guards/auth.guard';
 import { RoleGuard } from './core/guards/role.guard';
+import { PendingChangesGuard } from './core/guards/pending-changes.guard';
 import { UserRole } from './core/models/user.model';
 import { DefaultLayoutComponent } from './shared/layouts/default-layout/default-layout';
 import { AuthLayoutComponent } from './shared/layouts/auth-layout/auth-layout';
 
 export const routes: Routes = [
-  {
-    path: '',
-    redirectTo: 'dashboard',
-    pathMatch: 'full',
-  },
+  { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
   {
     path: 'auth',
     component: AuthLayoutComponent,
@@ -57,6 +54,7 @@ export const routes: Routes = [
               import('./features/projects/project-form/project-form').then(
                 (m) => m.ProjectFormComponent,
               ),
+            canDeactivate: [PendingChangesGuard],
           },
           {
             path: ':id',
@@ -71,6 +69,7 @@ export const routes: Routes = [
               import('./features/projects/project-form/project-form').then(
                 (m) => m.ProjectFormComponent,
               ),
+            canDeactivate: [PendingChangesGuard],
           },
         ],
       },
@@ -141,6 +140,20 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./features/marketplace/marketplace-order-book/marketplace-order-book').then(
                 (m) => m.MarketplaceOrderBookComponent,
+              ),
+          },
+          {
+            path: 'chart',
+            loadComponent: () =>
+              import('./features/marketplace/marketplace-chart/marketplace-chart').then(
+                (m) => m.MarketplaceChartComponent,
+              ),
+          },
+          {
+            path: ':id/buy',
+            loadComponent: () =>
+              import('./features/marketplace/marketplace-buy/marketplace-buy').then(
+                (m) => m.MarketplaceBuyComponent,
               ),
           },
         ],
@@ -265,8 +278,5 @@ export const routes: Routes = [
       },
     ],
   },
-  {
-    path: '**',
-    redirectTo: 'dashboard',
-  },
+  { path: '**', redirectTo: 'dashboard' },
 ];

@@ -11,6 +11,9 @@ export interface SensorDevice {
   createdAt: string;
 }
 
+export type SensorParameterKey =
+  'ph' | 'turbidity' | 'dissolvedOxygen' | 'flowRate' | 'nitrogen' | 'phosphorus' | 'temperature';
+
 export interface SensorReading {
   id: string;
   deviceId: string;

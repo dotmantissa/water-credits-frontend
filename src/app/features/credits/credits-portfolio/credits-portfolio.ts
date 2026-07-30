@@ -1,17 +1,9 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import {
-  NgIf,
-  NgFor,
-  AsyncPipe,
-  NgClass,
-  NgSwitch,
-  NgSwitchCase,
-  NgSwitchDefault,
-} from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { NgIf, NgFor, AsyncPipe, NgSwitch, NgSwitchCase } from '@angular/common';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Observable, Subject } from 'rxjs';
-import { NotificationService } from '../../../core/services/notification.service';
+import { filter, takeUntil } from 'rxjs/operators';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
 import { StellarAddressPipe } from '../../../shared/pipes/stellar-address.pipe';
@@ -28,14 +20,20 @@ import {
   CreditPortfolio,
   CreditTransaction,
 } from '../../../core/models/credit.model';
+import { RetirementRequest } from '../../../core/models/retirement.model';
 import { AppState } from '../../../core/store/app.state';
 import * as CreditsActions from '../../../core/store/credits/credits.actions';
+import * as RetirementActions from '../../../core/store/retirement/retirement.actions';
 import {
   selectPortfolio,
   selectCreditsLoading,
   selectCreditsError,
   selectCreditTransactions,
 } from '../../../core/store/credits/credits.selectors';
+import {
+  selectIsRetirementInProgress,
+  selectIsRetirementConfirmed,
+} from '../../../core/store/retirement/retirement.selectors';
 import {
   LucideAngularModule,
   Wallet,
@@ -47,6 +45,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ArrowLeftRight,
+  Tag,
 } from 'lucide-angular';
 
 @Component({
@@ -56,10 +55,8 @@ import {
     NgIf,
     NgFor,
     AsyncPipe,
-    NgClass,
     NgSwitch,
     NgSwitchCase,
-    NgSwitchDefault,
     RouterLink,
     CreditAmountPipe,
     DateFormatPipe,
@@ -115,7 +112,7 @@ import {
                 {{ portfolio.totalBalance | creditAmount }}
               </p>
               <p class="text-xs text-slate-400 mt-1">
-                Across {{ portfolio.holdings?.length || 0 }} projects
+                Across {{ portfolio.holdings.length || 0 }} projects
               </p>
             </div>
             <div class="card p-5">
@@ -153,7 +150,7 @@ import {
                 </div>
               </div>
               <p class="text-2xl font-bold text-slate-900 dark:text-white">
-                {{ portfolio.holdings?.length || 0 }}
+                {{ portfolio.holdings.length || 0 }}
               </p>
               <p class="text-xs text-slate-400 mt-1">Active projects</p>
             </div>
@@ -198,14 +195,22 @@ import {
                     class="text-sm text-slate-700 dark:text-slate-300 font-semibold"
                     >$ {{ parseFloat(row.balance) * row.creditPrice | numberAbbreviate }}</span
                   >
-                  <button
-                    *ngSwitchCase="'actions'"
-                    (click)="openRetireModal(row)"
-                    class="btn btn-sm btn-outline flex items-center gap-1.5 text-xs"
-                  >
-                    <lucide-angular [img]="DropletsIcon" class="w-3.5 h-3.5"></lucide-angular>
-                    Retire
-                  </button>
+                  <div *ngSwitchCase="'actions'" class="flex items-center gap-2">
+                    <button
+                      (click)="openRetireModal(row)"
+                      class="btn btn-sm btn-outline flex items-center gap-1.5 text-xs"
+                    >
+                      <lucide-angular [img]="DropletsIcon" class="w-3.5 h-3.5"></lucide-angular>
+                      Retire
+                    </button>
+                    <button
+                      (click)="sellHolding(row)"
+                      class="btn btn-sm btn-outline flex items-center gap-1.5 text-xs"
+                    >
+                      <lucide-angular [img]="TagIcon" class="w-3.5 h-3.5"></lucide-angular>
+                      Sell
+                    </button>
+                  </div>
                 </ng-container>
               </ng-template>
             </app-data-table>
@@ -289,6 +294,7 @@ import {
     <app-retire-credits-modal
       *ngIf="showRetireModal"
       [projects]="retireProjects"
+      [loading]="(retirementLoading$ | async) ?? false"
       (close)="closeRetireModal()"
       (confirm)="onRetireConfirm($event)"
     />
@@ -299,6 +305,7 @@ export class CreditsPortfolioComponent implements OnInit, OnDestroy {
   protected loading$: Observable<boolean>;
   protected error$: Observable<string | null>;
   protected transactions$: Observable<CreditTransaction[]>;
+  protected retirementLoading$: Observable<boolean>;
 
   protected showRetireModal = false;
   protected retireProjects: { id: string; name: string; balance: string }[] = [];
@@ -321,6 +328,7 @@ export class CreditsPortfolioComponent implements OnInit, OnDestroy {
   protected readonly ArrowUpRightIcon = ArrowUpRight;
   protected readonly ArrowDownRightIcon = ArrowDownRight;
   protected readonly ArrowLeftRightIcon = ArrowLeftRight;
+  protected readonly TagIcon = Tag;
 
   protected readonly parseFloat = parseFloat;
 
@@ -328,17 +336,23 @@ export class CreditsPortfolioComponent implements OnInit, OnDestroy {
 
   constructor(
     private store: Store<AppState>,
-    private notificationService: NotificationService,
+    private router: Router,
   ) {
     this.portfolio$ = this.store.select(selectPortfolio);
     this.loading$ = this.store.select(selectCreditsLoading);
     this.error$ = this.store.select(selectCreditsError);
     this.transactions$ = this.store.select(selectCreditTransactions);
+    this.retirementLoading$ = this.store.select(selectIsRetirementInProgress);
   }
 
   ngOnInit(): void {
     this.store.dispatch(CreditsActions.loadPortfolio());
     this.store.dispatch(CreditsActions.loadTransactions({}));
+
+    this.store
+      .select(selectIsRetirementConfirmed)
+      .pipe(filter(Boolean), takeUntil(this.destroy$))
+      .subscribe(() => this.closeRetireModal());
   }
 
   ngOnDestroy(): void {
@@ -361,13 +375,21 @@ export class CreditsPortfolioComponent implements OnInit, OnDestroy {
     this.showRetireModal = true;
   }
 
+  protected sellHolding(balance: CreditBalance): void {
+    this.router.navigate(['/marketplace/new'], { queryParams: { projectId: balance.projectId } });
+  }
+
   protected closeRetireModal(): void {
     this.showRetireModal = false;
     this.retireProjects = [];
   }
 
   protected onRetireConfirm(event: { projectId: string; amount: string; purpose: string }): void {
-    this.notificationService.success('Retirement Initiated', `Retiring ${event.amount} credits...`);
-    this.closeRetireModal();
+    const request: RetirementRequest = {
+      projectId: event.projectId,
+      amount: event.amount,
+      purpose: event.purpose,
+    };
+    this.store.dispatch(RetirementActions.initiateRetirement({ request }));
   }
 }

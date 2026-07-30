@@ -1,5 +1,4 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { NgIf, NgFor, AsyncPipe } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { Observable, Subject } from 'rxjs';
@@ -41,7 +40,6 @@ interface ProjectedEarning {
   selector: 'app-farmer-earnings',
   standalone: true,
   imports: [
-    RouterLink,
     NgIf,
     NgFor,
     AsyncPipe,

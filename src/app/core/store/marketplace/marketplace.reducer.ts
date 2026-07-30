@@ -1,6 +1,11 @@
 import { createReducer, on } from '@ngrx/store';
 import * as MarketplaceActions from './marketplace.actions';
+import * as AuthActions from '../auth/auth.actions';
 import { MarketplaceListing, OrderBook } from '../../services/marketplace.service';
+
+/** The buy wizard's current phase, used to drive UI state. */
+export type BuyPhase =
+  'idle' | 'preparing' | 'awaiting_signature' | 'submitting' | 'confirmed' | 'failed';
 
 export interface MarketplaceState {
   listings: MarketplaceListing[];
@@ -15,6 +20,14 @@ export interface MarketplaceState {
   loading: boolean;
   /** True while create-listing mutation is in flight. */
   creating: boolean;
+  /** True while a cancel-listing mutation is in flight. */
+  cancelling: boolean;
+  /** Buy wizard phase — drives spinner / step display. */
+  buyPhase: BuyPhase;
+  /** The listing currently being purchased through the buy wizard. */
+  activeListing: MarketplaceListing | null;
+  /** Timestamp (ms) of the last successful listings fetch, for cache expiration checks. */
+  lastFetched: number | null;
   error: string | null;
 }
 
@@ -28,13 +41,16 @@ const initialState: MarketplaceState = {
   orderBook: null,
   loading: false,
   creating: false,
+  cancelling: false,
+  buyPhase: 'idle',
+  activeListing: null,
+  lastFetched: null,
   error: null,
 };
 
 export const marketplaceReducer = createReducer(
   initialState,
 
-  // ── Load Listings ───────────────────────────────────────────────────────────
   on(MarketplaceActions.loadListings, (state) => ({
     ...state,
     loading: true,
@@ -48,6 +64,7 @@ export const marketplaceReducer = createReducer(
     page: response.page,
     limit: response.limit,
     totalPages: response.totalPages,
+    lastFetched: Date.now(),
   })),
   on(MarketplaceActions.loadListingsFailure, (state, { error }) => ({
     ...state,
@@ -55,7 +72,6 @@ export const marketplaceReducer = createReducer(
     error,
   })),
 
-  // ── Load Order Book ─────────────────────────────────────────────────────────
   on(MarketplaceActions.loadOrderBook, (state) => ({
     ...state,
     loading: true,
@@ -73,7 +89,6 @@ export const marketplaceReducer = createReducer(
     error,
   })),
 
-  // ── Create Listing ──────────────────────────────────────────────────────────
   on(MarketplaceActions.createListing, (state) => ({
     ...state,
     creating: true,
@@ -91,7 +106,58 @@ export const marketplaceReducer = createReducer(
     error,
   })),
 
-  // ── Filters / Pagination ────────────────────────────────────────────────────
+  on(MarketplaceActions.initiateBuy, (state) => ({
+    ...state,
+    buyPhase: 'preparing' as BuyPhase,
+    activeListing: null,
+    error: null,
+  })),
+  on(MarketplaceActions.buyPrepareFailure, (state, { error }) => ({
+    ...state,
+    buyPhase: 'failed' as BuyPhase,
+    error,
+  })),
+  on(MarketplaceActions.buySignatureRejected, (state) => ({
+    ...state,
+    buyPhase: 'idle' as BuyPhase,
+    error: null,
+  })),
+  on(MarketplaceActions.buySignatureFailure, (state, { error }) => ({
+    ...state,
+    buyPhase: 'failed' as BuyPhase,
+    error,
+  })),
+  on(MarketplaceActions.buySubmitFailure, (state, { error }) => ({
+    ...state,
+    buyPhase: 'failed' as BuyPhase,
+    error,
+  })),
+  on(MarketplaceActions.buyConfirmed, (state, { listing }) => ({
+    ...state,
+    buyPhase: 'confirmed' as BuyPhase,
+    activeListing: listing,
+    error: null,
+    listings: state.listings.map((l) => (l.id === listing.id ? listing : l)),
+  })),
+
+  on(MarketplaceActions.cancelListing, (state) => ({
+    ...state,
+    cancelling: true,
+    error: null,
+  })),
+  on(MarketplaceActions.cancelListingSuccess, (state, { listingId }) => ({
+    ...state,
+    cancelling: false,
+    listings: state.listings.map((l) =>
+      l.id === listingId ? { ...l, status: 'cancelled' as const } : l,
+    ),
+  })),
+  on(MarketplaceActions.cancelListingFailure, (state, { error }) => ({
+    ...state,
+    cancelling: false,
+    error,
+  })),
+
   on(MarketplaceActions.setListingsFilters, (state, { status, projectId, search }) => ({
     ...state,
     filters: { status, projectId, search },
@@ -101,4 +167,6 @@ export const marketplaceReducer = createReducer(
     ...state,
     page,
   })),
+  // Full cache reset on forced logout, per the cache-invalidation strategy.
+  on(AuthActions.forceLogout, () => initialState),
 );

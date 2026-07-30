@@ -10,6 +10,7 @@ import { governanceReducer, GovernanceState } from './governance/governance.redu
 import { marketplaceReducer, MarketplaceState } from './marketplace/marketplace.reducer';
 import { farmersReducer, FarmersState } from './farmers/farmers.reducer';
 import { analyticsReducer, AnalyticsState } from './analytics/analytics.reducer';
+import { adminReducer, AdminState } from './admin/admin.reducer';
 
 export interface AppState {
   auth: AuthState;
@@ -23,6 +24,7 @@ export interface AppState {
   marketplace: MarketplaceState;
   farmers: FarmersState;
   analytics: AnalyticsState;
+  admin: AdminState;
 }
 
 export const reducers: ActionReducerMap<AppState> = {
@@ -37,4 +39,5 @@ export const reducers: ActionReducerMap<AppState> = {
   marketplace: marketplaceReducer,
   farmers: farmersReducer,
   analytics: analyticsReducer,
+  admin: adminReducer,
 };

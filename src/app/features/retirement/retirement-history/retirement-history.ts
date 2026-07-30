@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from '@angular/common';
+import { NgIf, NgSwitch, NgSwitchCase } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { LucideAngularModule, Plus, FileText } from 'lucide-angular';
 import { RetirementService } from '../../../core/services/retirement.service';
@@ -17,10 +17,8 @@ import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
   standalone: true,
   imports: [
     NgIf,
-    NgFor,
     NgSwitch,
     NgSwitchCase,
-    NgSwitchDefault,
     RouterLink,
     LucideAngularModule,
     DataTableComponent,

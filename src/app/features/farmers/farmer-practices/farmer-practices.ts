@@ -1,5 +1,4 @@
 import { Component, OnInit } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
@@ -29,7 +28,7 @@ interface Bmp {
 @Component({
   selector: 'app-farmer-practices',
   standalone: true,
-  imports: [RouterLink, NgIf, NgFor, NgClass, LucideAngularModule],
+  imports: [NgIf, NgFor, NgClass, LucideAngularModule],
   template: `
     <div class="space-y-6">
       <div>

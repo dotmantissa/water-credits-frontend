@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { NgIf, NgFor, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Actions, ofType } from '@ngrx/effects';
 import { Observable, Subject, takeUntil } from 'rxjs';
@@ -200,6 +200,7 @@ export class MarketplaceCreateListingComponent implements OnInit, OnDestroy {
     private actions$: Actions,
     private projectsService: ProjectsService,
     private notificationService: NotificationService,
+    private route: ActivatedRoute,
     protected router: Router,
   ) {
     this.submitting$ = this.store.select(selectMarketplaceCreating);
@@ -209,6 +210,12 @@ export class MarketplaceCreateListingComponent implements OnInit, OnDestroy {
     try {
       const response = await this.projectsService.getProjects({ limit: 100 });
       this.projects = response.data;
+
+      // Deep-linked from the credits portfolio "Sell" action — preselect the project.
+      const projectId = this.route.snapshot.queryParamMap.get('projectId');
+      if (projectId && this.projects.some((p) => p.id === projectId)) {
+        this.form.projectId = projectId;
+      }
     } catch {
       this.notificationService.error('Error', 'Failed to load projects');
     } finally {

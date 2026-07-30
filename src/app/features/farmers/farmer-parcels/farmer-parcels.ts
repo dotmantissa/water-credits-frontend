@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { NgIf, NgFor, NgClass, AsyncPipe } from '@angular/common';
+import { NgIf, NgFor, AsyncPipe } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { Actions, ofType } from '@ngrx/effects';
 import { Observable, Subject, takeUntil } from 'rxjs';
@@ -34,11 +34,9 @@ import {
   selector: 'app-farmer-parcels',
   standalone: true,
   imports: [
-    RouterLink,
     FormsModule,
     NgIf,
     NgFor,
-    NgClass,
     AsyncPipe,
     StatusBadgeComponent,
     LoadingStateComponent,
@@ -248,7 +246,7 @@ import {
                 <lucide-angular [img]="Calendar" class="w-3 h-3 text-slate-400"></lucide-angular>
                 <span class="text-slate-400">Baseline:</span>
                 <span class="font-medium text-slate-700 dark:text-slate-300">{{
-                  (parcel.baselineStart ?? '').split('T')[0]
+                  (parcel.baselineStart || '').split('T')[0]
                 }}</span>
               </div>
             </div>

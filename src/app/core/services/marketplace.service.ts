@@ -35,6 +35,27 @@ export interface CreateListingRequest {
   expiresAt?: string;
 }
 
+/**
+ * Response from POST /marketplace/listings/:id/buy.
+ *
+ * Mirrors RetirementPrepareResponse: if the backend supports the two-step
+ * flow it returns an unsigned XDR for the client to sign. When absent the
+ * backend has already settled the purchase (legacy single-POST path).
+ */
+export interface BuyPrepareResponse {
+  listing: MarketplaceListing;
+  /** Base64-encoded unsigned XDR of the Soroban contract invocation. */
+  unsignedXdr?: string;
+  /** Stellar network passphrase needed by Freighter for correct signing. */
+  networkPassphrase?: string;
+}
+
+/** Payload sent to POST /marketplace/listings/:id/submit after Freighter signs the XDR. */
+export interface BuySubmitRequest {
+  listingId: string;
+  signedXdr: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MarketplaceService {
   constructor(private api: ApiService) {}
@@ -62,5 +83,15 @@ export class MarketplaceService {
 
   async getOrderBook(projectId: string): Promise<OrderBook> {
     return this.api.get<OrderBook>(`/marketplace/orderbook/${projectId}`);
+  }
+
+  async buyListing(id: string): Promise<BuyPrepareResponse> {
+    return this.api.post<BuyPrepareResponse>(`/marketplace/listings/${id}/buy`);
+  }
+
+  async submitPurchase(payload: BuySubmitRequest): Promise<MarketplaceListing> {
+    return this.api.post<MarketplaceListing>(`/marketplace/listings/${payload.listingId}/submit`, {
+      signedXdr: payload.signedXdr,
+    });
   }
 }

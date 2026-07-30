@@ -32,3 +32,8 @@
 .sort-indicator {
   transition: opacity 120ms ease-in-out;
 }
+
+.virtual-viewport {
+  height: 600px;
+  max-height: 70vh;
+}

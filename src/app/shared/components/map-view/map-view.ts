@@ -1,4 +1,16 @@
-import { Component, Input, OnDestroy, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnDestroy,
+  AfterViewInit,
+  OnChanges,
+  SimpleChanges,
+  ViewChild,
+  ElementRef,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
 import * as L from 'leaflet';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -17,37 +29,128 @@ export interface MapMarker {
   popupContent?: string;
 }
 
+/** Emitted by drawMode 'pin', 'polygon', or 'pin+polygon'. */
+export interface MapLocation {
+  /** Dropped pin / polygon centroid. */
+  center: { lat: number; lng: number };
+  /** GeoJSON Polygon describing the drawn boundary, or null if only a pin was placed. */
+  boundary: GeoJSON.Polygon | null;
+}
+
+export type MapDrawMode = 'none' | 'pin' | 'polygon' | 'pin+polygon';
+
 @Component({
   selector: 'app-map-view',
   standalone: true,
-  imports: [],
+  imports: [CommonModule],
   template: `
-    <div
-      class="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700"
-      [style.height.px]="height"
-    >
-      <div #mapContainer class="w-full h-full"></div>
+    <div class="space-y-2">
+      <div
+        class="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700"
+        [style.height.px]="height"
+      >
+        <div #mapContainer class="w-full h-full"></div>
+      </div>
+
+      <!-- Draw-mode instructions -->
+      <p *ngIf="drawMode !== 'none'" class="text-xs text-slate-400 select-none">
+        <ng-container *ngIf="drawMode === 'pin'">
+          Click the map to drop the project pin.
+        </ng-container>
+        <ng-container *ngIf="drawMode === 'polygon'">
+          Click to add polygon vertices &middot; double-click to close the shape.
+        </ng-container>
+        <ng-container *ngIf="drawMode === 'pin+polygon'">
+          <span *ngIf="!pinPlaced">Step 1: Click to drop the project headquarters pin.</span>
+          <span *ngIf="pinPlaced && !polygonClosed">
+            Step 2: Click to draw the project boundary &middot; double-click to close.
+            <button
+              type="button"
+              (click)="resetDraw()"
+              class="ml-2 text-stellar-blue underline text-xs"
+            >
+              Reset
+            </button>
+          </span>
+          <span *ngIf="polygonClosed" class="text-environmental-green font-medium">
+            Location set.
+            <button
+              type="button"
+              (click)="resetDraw()"
+              class="ml-2 text-stellar-blue underline text-xs"
+            >
+              Redraw
+            </button>
+          </span>
+        </ng-container>
+      </p>
     </div>
   `,
 })
-export class MapViewComponent implements AfterViewInit, OnDestroy {
+export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() markers: MapMarker[] = [];
   @Input() height = 400;
   @Input() centerLat = 20;
   @Input() centerLng = 0;
   @Input() zoom = 2;
   @Input() clickable = false;
+  /** Controls interactive drawing mode. */
+  @Input() drawMode: MapDrawMode = 'none';
+
+  /** Emitted once the user has completed the required draw gesture. */
+  @Output() locationPicked = new EventEmitter<MapLocation>();
+
+  /** Emitted when a read-only marker is clicked (requires clickable=true). */
+  @Output() markerClick = new EventEmitter<MapMarker>();
 
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLDivElement>;
+
   private map: L.Map | null = null;
+
+  // â”€â”€ draw state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  protected pinPlaced = false;
+  protected polygonClosed = false;
+
+  private pinMarker: L.Marker | null = null;
+  private polylineLayer: L.Polyline | null = null;
+  private polygonLayer: L.Polygon | null = null;
+  private polyVertices: L.LatLng[] = [];
 
   ngAfterViewInit(): void {
     this.initMap();
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!this.map) return;
+    if (changes['markers']) {
+      this.clearReadOnlyMarkers();
+      this.addMarkers();
+    }
+    if (changes['drawMode']) {
+      this.resetDraw();
+      this.bindDrawListeners();
+    }
+  }
+
   ngOnDestroy(): void {
     this.map?.remove();
   }
+
+  // â”€â”€ public reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  resetDraw(): void {
+    this.pinPlaced = false;
+    this.polygonClosed = false;
+    this.polyVertices = [];
+    this.pinMarker?.remove();
+    this.pinMarker = null;
+    this.polylineLayer?.remove();
+    this.polylineLayer = null;
+    this.polygonLayer?.remove();
+    this.polygonLayer = null;
+  }
+
+  // â”€â”€ init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private initMap(): void {
     this.map = L.map(this.mapContainer.nativeElement, {
@@ -63,6 +166,19 @@ export class MapViewComponent implements AfterViewInit, OnDestroy {
     }).addTo(this.map);
 
     this.addMarkers();
+
+    if (this.drawMode !== 'none') {
+      this.bindDrawListeners();
+    }
+  }
+
+  // â”€â”€ marker rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  private _readOnlyMarkerLayers: L.Marker[] = [];
+
+  private clearReadOnlyMarkers(): void {
+    this._readOnlyMarkerLayers.forEach((m) => m.remove());
+    this._readOnlyMarkerLayers = [];
   }
 
   private addMarkers(): void {
@@ -80,6 +196,12 @@ export class MapViewComponent implements AfterViewInit, OnDestroy {
       if (marker.popupContent) {
         m.bindPopup(marker.popupContent);
       }
+
+      if (this.clickable) {
+        m.on('click', () => this.markerClick.emit(marker));
+      }
+
+      this._readOnlyMarkerLayers.push(m);
     });
 
     if (this.markers.length > 0) {
@@ -89,6 +211,137 @@ export class MapViewComponent implements AfterViewInit, OnDestroy {
       this.map?.fitBounds(bounds, { padding: [50, 50] });
     }
   }
+
+  // â”€â”€ draw interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  private boundClickHandler: ((e: L.LeafletMouseEvent) => void) | null = null;
+  private boundDblClickHandler: ((e: L.LeafletMouseEvent) => void) | null = null;
+
+  private bindDrawListeners(): void {
+    if (!this.map) return;
+
+    // Remove existing listeners first
+    if (this.boundClickHandler) this.map.off('click', this.boundClickHandler);
+    if (this.boundDblClickHandler) this.map.off('dblclick', this.boundDblClickHandler);
+
+    if (this.drawMode === 'none') return;
+
+    this.boundClickHandler = (e: L.LeafletMouseEvent) => this.onMapClick(e);
+    this.boundDblClickHandler = (e: L.LeafletMouseEvent) => this.onMapDblClick(e);
+
+    this.map.on('click', this.boundClickHandler);
+    this.map.on('dblclick', this.boundDblClickHandler);
+  }
+
+  private onMapClick(e: L.LeafletMouseEvent): void {
+    const latlng = e.latlng;
+
+    if (this.drawMode === 'pin') {
+      this.placePin(latlng);
+      this.emit();
+      return;
+    }
+
+    if (this.drawMode === 'polygon') {
+      if (this.polygonClosed) return;
+      this.addPolyVertex(latlng);
+      return;
+    }
+
+    if (this.drawMode === 'pin+polygon') {
+      if (!this.pinPlaced) {
+        this.placePin(latlng);
+        this.pinPlaced = true;
+        return;
+      }
+      if (!this.polygonClosed) {
+        this.addPolyVertex(latlng);
+      }
+    }
+  }
+
+  private onMapDblClick(e: L.LeafletMouseEvent): void {
+    // Prevent Leaflet's default double-click zoom
+    L.DomEvent.stopPropagation(e.originalEvent);
+    L.DomEvent.preventDefault(e.originalEvent);
+
+    if (this.drawMode === 'polygon' || this.drawMode === 'pin+polygon') {
+      if (!this.polygonClosed && this.polyVertices.length >= 3) {
+        this.closePolygon();
+      }
+    }
+  }
+
+  private placePin(latlng: L.LatLng): void {
+    this.pinMarker?.remove();
+    this.pinMarker = L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'draw-pin',
+        html: `<div style="background:#7B2FBE;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      }),
+    }).addTo(this.map!);
+  }
+
+  private addPolyVertex(latlng: L.LatLng): void {
+    this.polyVertices.push(latlng);
+    this.polylineLayer?.remove();
+    this.polylineLayer = L.polyline(this.polyVertices, {
+      color: '#7B2FBE',
+      weight: 2,
+      dashArray: '6 4',
+    }).addTo(this.map!);
+  }
+
+  private closePolygon(): void {
+    if (this.polyVertices.length < 3) return;
+    this.polylineLayer?.remove();
+    this.polylineLayer = null;
+    this.polygonLayer?.remove();
+    this.polygonLayer = L.polygon(this.polyVertices, {
+      color: '#7B2FBE',
+      weight: 2,
+      fillColor: '#7B2FBE',
+      fillOpacity: 0.15,
+    }).addTo(this.map!);
+    this.polygonClosed = true;
+    this.emit();
+  }
+
+  private emit(): void {
+    const center = this.pinMarker
+      ? this.pinMarker.getLatLng()
+      : this.polygonLayer
+        ? this.polygonLayer.getBounds().getCenter()
+        : null;
+
+    if (!center) return;
+
+    let boundary: GeoJSON.Polygon | null = null;
+    if (this.polygonLayer) {
+      const coords = this.polyVertices.map((v) => [v.lng, v.lat] as [number, number]);
+      // Close the ring
+      coords.push(coords[0]);
+      boundary = { type: 'Polygon', coordinates: [coords] };
+    }
+
+    const readyPin = this.drawMode === 'pin' || (this.drawMode === 'pin+polygon' && this.pinPlaced);
+    const readyPoly =
+      this.drawMode === 'polygon' || (this.drawMode === 'pin+polygon' && this.polygonClosed);
+    const readyNone = this.drawMode === 'none';
+
+    if (readyNone) return;
+    if (this.drawMode === 'pin' && readyPin) {
+      this.locationPicked.emit({ center: { lat: center.lat, lng: center.lng }, boundary: null });
+    } else if (this.drawMode === 'polygon' && readyPoly && this.polygonClosed) {
+      this.locationPicked.emit({ center: { lat: center.lat, lng: center.lng }, boundary });
+    } else if (this.drawMode === 'pin+polygon' && this.pinPlaced && this.polygonClosed) {
+      this.locationPicked.emit({ center: { lat: center.lat, lng: center.lng }, boundary });
+    }
+  }
+
+  // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private getStatusColor(status?: string): string {
     switch (status) {

@@ -1,5 +1,6 @@
 import { createReducer, on } from '@ngrx/store';
 import * as ProjectsActions from './projects.actions';
+import * as AuthActions from '../auth/auth.actions';
 import { Project } from '../../models/project.model';
 import { ProjectFilters } from '../../models/project.model';
 
@@ -11,6 +12,8 @@ export interface ProjectsState {
   page: number;
   limit: number;
   totalPages: number;
+  /** Timestamp (ms) of the last successful list fetch, for cache expiration checks. */
+  lastFetched: number | null;
   loading: boolean;
   error: string | null;
 }
@@ -23,6 +26,7 @@ export const initialState: ProjectsState = {
   page: 1,
   limit: 10,
   totalPages: 0,
+  lastFetched: null,
   loading: false,
   error: null,
 };
@@ -38,6 +42,7 @@ export const projectsReducer = createReducer(
     page: response.page,
     limit: response.limit,
     totalPages: response.totalPages,
+    lastFetched: Date.now(),
   })),
   on(ProjectsActions.loadProjectsFailure, (state, { error }) => ({
     ...state,
@@ -68,4 +73,6 @@ export const projectsReducer = createReducer(
   on(ProjectsActions.setProjectFilters, (state, { filters }) => ({ ...state, filters, page: 1 })),
   on(ProjectsActions.clearProjectFilters, (state) => ({ ...state, filters: {}, page: 1 })),
   on(ProjectsActions.setProjectPage, (state, { page }) => ({ ...state, page })),
+  // Full cache reset on forced logout, per the cache-invalidation strategy.
+  on(AuthActions.forceLogout, () => initialState),
 );

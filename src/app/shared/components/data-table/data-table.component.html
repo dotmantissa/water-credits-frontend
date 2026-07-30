@@ -74,7 +74,8 @@
           </th>
         </tr>
       </thead>
-      <tbody>
+
+      <tbody *ngIf="!virtualScroll">
         <ng-container *ngIf="loading">
           <tr class="border-b border-slate-100 dark:border-slate-700/50">
             <td [attr.colspan]="columns.length" class="px-4 py-6">
@@ -124,6 +125,61 @@
         </ng-container>
       </tbody>
     </table>
+
+    <ng-container *ngIf="virtualScroll">
+      <div *ngIf="loading" class="px-4 py-6">
+        <ng-container *ngFor="let _ of [].constructor(5); trackBy: trackBySkeleton">
+          <div class="table-skeleton-line-wrapper py-3">
+            <div class="flex items-center gap-4">
+              <div
+                *ngFor="let col of columns"
+                class="flex-1 h-4 rounded bg-slate-200/70 dark:bg-slate-700/60"
+              ></div>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+
+      <div *ngIf="!loading && data.length === 0" class="px-4 py-12">
+        <app-empty-state [title]="emptyTitle" [message]="emptyMessage"></app-empty-state>
+      </div>
+
+      <cdk-virtual-scroll-viewport
+        *ngIf="!loading && data.length > 0"
+        [itemSize]="rowHeight"
+        class="virtual-viewport"
+      >
+        <table class="w-full text-left border-collapse">
+          <tbody>
+            <tr
+              *cdkVirtualFor="let row of data; trackBy: trackByRow"
+              class="border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+              [style.height.px]="rowHeight"
+              (click)="onRowClick(row)"
+            >
+              <td
+                *ngFor="let col of columns"
+                [ngClass]="{
+                  'text-right': col.align === 'right',
+                  'text-center': col.align === 'center',
+                }"
+                class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300"
+                [style.width]="col.width"
+              >
+                <ng-container *ngIf="rowTemplate; else defaultVirtualCell">
+                  <ng-container
+                    *ngTemplateOutlet="rowTemplate; context: { $implicit: row, column: col }"
+                  ></ng-container>
+                </ng-container>
+                <ng-template #defaultVirtualCell>
+                  {{ displayText(col, row) }}
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </cdk-virtual-scroll-viewport>
+    </ng-container>
   </div>
 
   <app-pagination-controls

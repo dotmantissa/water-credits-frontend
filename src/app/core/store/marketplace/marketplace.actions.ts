@@ -61,6 +61,64 @@ export const createListingFailure = createAction(
   props<{ error: string }>(),
 );
 
+// ─── Buy Listing ──────────────────────────────────────────────────────────────
+// Two-phase flow mirroring RetirementActions: prepare (backend creates the
+// unsigned XDR) -> Freighter signing -> submit. See MarketplaceEffects.initiateBuy$.
+
+/** Dispatched by MarketplaceBuyComponent when the user clicks "Confirm Purchase". */
+export const initiateBuy = createAction(
+  '[Marketplace] Initiate Buy',
+  props<{ listingId: string }>(),
+);
+
+export const buyPrepareFailure = createAction(
+  '[Marketplace] Buy Prepare Failure',
+  props<{ error: string }>(),
+);
+
+/**
+ * Emitted when the user explicitly rejects the Freighter signing prompt.
+ * This is NOT an error; the buy page returns to the review step.
+ */
+export const buySignatureRejected = createAction(
+  '[Marketplace] Buy Signature Rejected',
+  props<{ listingId: string }>(),
+);
+
+export const buySignatureFailure = createAction(
+  '[Marketplace] Buy Signature Failure',
+  props<{ listingId: string; error: string }>(),
+);
+
+export const buySubmitFailure = createAction(
+  '[Marketplace] Buy Submit Failure',
+  props<{ listingId: string; error: string }>(),
+);
+
+/** Terminal success action. Emitted once the backend confirms the purchase. */
+export const buyConfirmed = createAction(
+  '[Marketplace] Buy Confirmed',
+  props<{ listing: MarketplaceListing }>(),
+);
+
+// ─── Cancel Listing ───────────────────────────────────────────────────────────
+
+/** Dispatched by the listing owner to withdraw an active listing. */
+export const cancelListing = createAction(
+  '[Marketplace] Cancel Listing',
+  props<{ listingId: string }>(),
+);
+
+export const cancelListingSuccess = createAction(
+  '[Marketplace] Cancel Listing Success',
+  props<{ listingId: string }>(),
+);
+
+export const cancelListingFailure = createAction(
+  '[Marketplace] Cancel Listing Failure',
+  props<{ error: string }>(),
+);
+
 // ─── Set Filters ──────────────────────────────────────────────────────────────
 
 export const setListingsFilters = createAction(

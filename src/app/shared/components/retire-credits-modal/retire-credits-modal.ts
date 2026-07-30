@@ -159,9 +159,10 @@ interface Step {
           <button
             *ngIf="currentStep === 3"
             (click)="confirm.emit({ projectId: selectedProjectId, amount, purpose })"
+            [disabled]="loading"
             class="btn btn-primary"
           >
-            Confirm Retirement
+            {{ loading ? 'Submitting...' : 'Confirm Retirement' }}
           </button>
           <button *ngIf="currentStep === 4" (click)="close.emit()" class="btn btn-primary">
             Done
@@ -173,6 +174,7 @@ interface Step {
 })
 export class RetireCreditsModalComponent {
   @Input() projects: { id: string; name: string; balance: string }[] = [];
+  @Input() loading = false;
   @Output() close = new EventEmitter<void>();
   @Output() confirm = new EventEmitter<{ projectId: string; amount: string; purpose: string }>();
 

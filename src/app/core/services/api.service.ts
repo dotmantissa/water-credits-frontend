@@ -99,4 +99,29 @@ export class ApiService {
     const response: AxiosResponse<T> = await this.axiosInstance.delete(url, config);
     return response.data;
   }
+
+  /**
+   * Upload a single file via multipart/form-data.
+   *
+   * The server responds with the stored file ID that can be referenced
+   * in subsequent resource creation payloads (e.g. project documents).
+   *
+   * @param file      The browser File object to upload.
+   * @param fieldName The multipart field name expected by the server (default: "file").
+   * @returns         The server-assigned file ID.
+   */
+  async uploadFile(file: File, fieldName = 'file'): Promise<{ fileId: string }> {
+    const formData = new FormData();
+    formData.append(fieldName, file, file.name);
+
+    const response: AxiosResponse<{ fileId: string }> = await this.axiosInstance.post(
+      '/uploads',
+      formData,
+      {
+        // Let the browser set the correct Content-Type boundary automatically
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    );
+    return response.data;
+  }
 }

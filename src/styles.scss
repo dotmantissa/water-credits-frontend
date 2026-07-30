@@ -47,3 +47,49 @@ a {
     @apply bg-slate-400 dark:bg-slate-600;
   }
 }
+
+/* PWA update-available toast (rendered by DashboardComponent) */
+.update-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: #7b2fbe; // stellar-blue brand colour
+  color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &__icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    flex: 1;
+  }
+
+  &__btn {
+    background-color: #ffffff;
+    color: #7b2fbe;
+    border: none;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 150ms ease-in-out;
+
+    &:hover {
+      background-color: #f3e8ff;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: 2px;
+    }
+  }
+}

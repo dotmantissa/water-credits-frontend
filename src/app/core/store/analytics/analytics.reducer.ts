@@ -1,5 +1,6 @@
 import { createReducer, on } from '@ngrx/store';
 import * as AnalyticsActions from './analytics.actions';
+import * as AuthActions from '../auth/auth.actions';
 import { AnalyticsOverview, CreditsOverTimePoint } from '../../models/analytics.model';
 import { RecentRetirement } from '../../models/retirement.model';
 
@@ -10,6 +11,8 @@ export interface AnalyticsState {
   loadingOverview: boolean;
   loadingCreditsOverTime: boolean;
   loadingRecentRetirements: boolean;
+  /** Timestamp (ms) of the last successful overview fetch, for cache expiration checks. */
+  lastFetched: number | null;
   error: string | null;
 }
 
@@ -20,6 +23,7 @@ const initialState: AnalyticsState = {
   loadingOverview: false,
   loadingCreditsOverTime: false,
   loadingRecentRetirements: false,
+  lastFetched: null,
   error: null,
 };
 
@@ -35,6 +39,7 @@ export const analyticsReducer = createReducer(
     ...state,
     overview,
     loadingOverview: false,
+    lastFetched: Date.now(),
   })),
   on(AnalyticsActions.loadAnalyticsOverviewFailure, (state, { error }) => ({
     ...state,
@@ -73,4 +78,6 @@ export const analyticsReducer = createReducer(
     loadingRecentRetirements: false,
     error,
   })),
+  // Full cache reset on forced logout, per the cache-invalidation strategy.
+  on(AuthActions.forceLogout, () => initialState),
 );

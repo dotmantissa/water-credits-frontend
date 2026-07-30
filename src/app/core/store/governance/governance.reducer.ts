@@ -1,5 +1,6 @@
 import { createReducer, on } from '@ngrx/store';
 import * as GovernanceActions from './governance.actions';
+import * as AuthActions from '../auth/auth.actions';
 import { Proposal, GovernanceConfig } from '../../models/proposal.model';
 
 export interface GovernanceState {
@@ -15,6 +16,8 @@ export interface GovernanceState {
   voting: boolean;
   executing: boolean;
   creating: boolean;
+  /** Timestamp (ms) of the last successful proposals fetch, for cache expiration checks. */
+  lastFetched: number | null;
   error: string | null;
 }
 
@@ -31,6 +34,7 @@ const initialState: GovernanceState = {
   voting: false,
   executing: false,
   creating: false,
+  lastFetched: null,
   error: null,
 };
 
@@ -67,6 +71,7 @@ export const governanceReducer = createReducer(
     page,
     totalPages,
     loadingProposals: false,
+    lastFetched: Date.now(),
   })),
   on(GovernanceActions.loadProposalsFailure, (state, { error }) => ({
     ...state,
@@ -163,4 +168,6 @@ export const governanceReducer = createReducer(
     executing: false,
     error,
   })),
+  // Full cache reset on forced logout, per the cache-invalidation strategy.
+  on(AuthActions.forceLogout, () => initialState),
 );

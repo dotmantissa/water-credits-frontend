@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { of, from } from 'rxjs';
-import { map, switchMap, catchError } from 'rxjs/operators';
+import { map, switchMap, catchError, tap } from 'rxjs/operators';
 import * as ProjectsActions from './projects.actions';
 import { ProjectsService } from '../../services/projects.service';
 
@@ -61,6 +62,21 @@ export class ProjectsEffects {
     ),
   );
 
+  /**
+   * After a project is successfully created, navigate to its detail page.
+   * Using a non-dispatching effect (dispatch: false) for the side-navigation.
+   */
+  createProjectSuccess$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(ProjectsActions.createProjectSuccess),
+        tap(({ project }) => {
+          this.router.navigate(['/projects', project.id]);
+        }),
+      ),
+    { dispatch: false },
+  );
+
   updateProject$ = createEffect(() =>
     this.actions$.pipe(
       ofType(ProjectsActions.updateProject),
@@ -82,5 +98,6 @@ export class ProjectsEffects {
   constructor(
     private actions$: Actions,
     private projectsService: ProjectsService,
+    private router: Router,
   ) {}
 }

@@ -14,9 +14,12 @@ import {
   MarketplaceService,
   MarketplaceListing,
   OrderBook,
+  BuyPrepareResponse,
 } from '../../services/marketplace.service';
+import { WalletService } from '../../services/wallet.service';
 import { NotificationService } from '../../services/notification.service';
 import * as MarketplaceActions from './marketplace.actions';
+import * as CreditsActions from '../credits/credits.actions';
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 
@@ -45,6 +48,22 @@ const mockOrderBook: OrderBook = {
   bids: [{ price: 2.0, amount: '2000', total: '4000', count: 2 }],
 };
 
+const mockConfirmedPurchase: MarketplaceListing = { ...mockListing, status: 'filled' };
+
+const mockUnsignedXdr = 'AAAAAQAA...base64xdr==';
+const mockSignedXdr = 'AAAASIGN...base64xdr==';
+const mockNetworkPassphrase = 'Test SDF Network ; September 2015';
+
+const mockBuyPrepareResponseWithXdr: BuyPrepareResponse = {
+  listing: mockListing,
+  unsignedXdr: mockUnsignedXdr,
+  networkPassphrase: mockNetworkPassphrase,
+};
+
+const mockBuyPrepareResponseLegacy: BuyPrepareResponse = {
+  listing: mockConfirmedPurchase,
+};
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('MarketplaceEffects', () => {
@@ -55,7 +74,12 @@ describe('MarketplaceEffects', () => {
     getListings: vi.fn(),
     getOrderBook: vi.fn(),
     createListing: vi.fn(),
+    cancelListing: vi.fn(),
+    buyListing: vi.fn(),
+    submitPurchase: vi.fn(),
   };
+
+  const walletServiceMock = { signTx: vi.fn() };
 
   const notificationServiceMock = {
     success: vi.fn(),
@@ -75,6 +99,7 @@ describe('MarketplaceEffects', () => {
         provideStore({}),
         provideMockActions(() => actions$),
         { provide: MarketplaceService, useValue: marketplaceServiceMock },
+        { provide: WalletService, useValue: walletServiceMock },
         { provide: NotificationService, useValue: notificationServiceMock },
       ],
     });
@@ -235,6 +260,256 @@ describe('MarketplaceEffects', () => {
       expect(notificationServiceMock.error).toHaveBeenCalledWith(
         'Failed to create listing',
         'Insufficient balance',
+      );
+    });
+  });
+
+  // ── Buy flow: happy path ────────────────────────────────────────────────────
+
+  describe('initiateBuy$ — happy path (two-step flow)', () => {
+    it('prepares, signs, submits, and emits buyConfirmed', async () => {
+      marketplaceServiceMock.buyListing.mockResolvedValue(mockBuyPrepareResponseWithXdr);
+      walletServiceMock.signTx.mockResolvedValue(mockSignedXdr);
+      marketplaceServiceMock.submitPurchase.mockResolvedValue(mockConfirmedPurchase);
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(MarketplaceActions.buyConfirmed({ listing: mockConfirmedPurchase }));
+      expect(marketplaceServiceMock.buyListing).toHaveBeenCalledWith(mockListing.id);
+      expect(walletServiceMock.signTx).toHaveBeenCalledWith(
+        mockUnsignedXdr,
+        'STELLAR',
+        mockNetworkPassphrase,
+      );
+      expect(marketplaceServiceMock.submitPurchase).toHaveBeenCalledWith({
+        listingId: mockListing.id,
+        signedXdr: mockSignedXdr,
+      });
+    });
+  });
+
+  describe('initiateBuy$ — legacy single-POST path (no XDR)', () => {
+    it('skips signing and emits buyConfirmed directly', async () => {
+      marketplaceServiceMock.buyListing.mockResolvedValue(mockBuyPrepareResponseLegacy);
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.buyConfirmed({ listing: mockBuyPrepareResponseLegacy.listing }),
+      );
+      expect(walletServiceMock.signTx).not.toHaveBeenCalled();
+      expect(marketplaceServiceMock.submitPurchase).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Buy flow: user declines Freighter prompt ────────────────────────────────
+
+  describe('initiateBuy$ — user declines Freighter prompt', () => {
+    it('emits buySignatureRejected (not an error action)', async () => {
+      marketplaceServiceMock.buyListing.mockResolvedValue(mockBuyPrepareResponseWithXdr);
+      walletServiceMock.signTx.mockRejectedValue(new Error('User declined the signing request'));
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.buySignatureRejected({ listingId: mockListing.id }),
+      );
+      expect(marketplaceServiceMock.submitPurchase).not.toHaveBeenCalled();
+    });
+
+    it('emits buySignatureRejected when signTx returns null', async () => {
+      marketplaceServiceMock.buyListing.mockResolvedValue(mockBuyPrepareResponseWithXdr);
+      walletServiceMock.signTx.mockResolvedValue(null);
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.buySignatureRejected({ listingId: mockListing.id }),
+      );
+    });
+
+    it('shows an info notification and not an error', async () => {
+      const resultPromise = firstValueFrom(effects.buySignatureRejected$);
+      actions$.next(MarketplaceActions.buySignatureRejected({ listingId: mockListing.id }));
+      await resultPromise;
+
+      expect(notificationServiceMock.info).toHaveBeenCalledWith(
+        'Signing cancelled',
+        expect.any(String),
+      );
+      expect(notificationServiceMock.error).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Buy flow: insufficient balance (prepare step fails) ─────────────────────
+
+  describe('initiateBuy$ — insufficient balance', () => {
+    it('emits buyPrepareFailure with the error message', async () => {
+      marketplaceServiceMock.buyListing.mockRejectedValue(new Error('Insufficient balance'));
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.buyPrepareFailure({ error: 'Insufficient balance' }),
+      );
+    });
+
+    it('shows an error notification', async () => {
+      const resultPromise = firstValueFrom(effects.buyPrepareFailure$);
+      actions$.next(MarketplaceActions.buyPrepareFailure({ error: 'Insufficient balance' }));
+      await resultPromise;
+
+      expect(notificationServiceMock.error).toHaveBeenCalledWith(
+        'Purchase failed',
+        'Insufficient balance',
+      );
+    });
+  });
+
+  // ── Buy flow: backend fails after signing ───────────────────────────────────
+
+  describe('initiateBuy$ — backend fails after signing', () => {
+    it('emits buySubmitFailure with the error message', async () => {
+      marketplaceServiceMock.buyListing.mockResolvedValue(mockBuyPrepareResponseWithXdr);
+      walletServiceMock.signTx.mockResolvedValue(mockSignedXdr);
+      marketplaceServiceMock.submitPurchase.mockRejectedValue(new Error('Internal server error'));
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.buySubmitFailure({
+          listingId: mockListing.id,
+          error: 'Internal server error',
+        }),
+      );
+    });
+  });
+
+  // ── Buy flow: exhaustMap deduplication ──────────────────────────────────────
+
+  describe('initiateBuy$ — exhaustMap deduplication', () => {
+    it('processes only the first dispatch and ignores the second while in flight', async () => {
+      let resolveFirst!: (v: BuyPrepareResponse) => void;
+      const firstCallPromise = new Promise<BuyPrepareResponse>((res) => {
+        resolveFirst = res;
+      });
+
+      marketplaceServiceMock.buyListing
+        .mockReturnValueOnce(firstCallPromise)
+        .mockResolvedValue(mockBuyPrepareResponseLegacy);
+
+      const resultPromise = firstValueFrom(effects.initiateBuy$);
+
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+      actions$.next(MarketplaceActions.initiateBuy({ listingId: mockListing.id }));
+
+      await new Promise((r) => setTimeout(r, 10));
+      resolveFirst(mockBuyPrepareResponseLegacy);
+
+      await resultPromise;
+
+      expect(marketplaceServiceMock.buyListing).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── Buy flow: cross-slice invalidation ──────────────────────────────────────
+
+  describe('buyConfirmed$ — cross-slice invalidation', () => {
+    it('dispatches loadListings and loadPortfolio after a confirmed purchase', async () => {
+      const actionsPromise = new Promise<Action[]>((resolve) => {
+        const seen: Action[] = [];
+        effects.buyConfirmed$.subscribe({
+          next: (a) => {
+            seen.push(a);
+            if (seen.length === 2) resolve(seen);
+          },
+        });
+      });
+
+      actions$.next(MarketplaceActions.buyConfirmed({ listing: mockConfirmedPurchase }));
+      const dispatched = await actionsPromise;
+
+      expect(dispatched).toEqual([
+        MarketplaceActions.loadListings({ params: {} }),
+        CreditsActions.loadPortfolio(),
+      ]);
+    });
+
+    it('shows a success notification containing the amount', async () => {
+      const resultPromise = firstValueFrom(effects.buyConfirmed$);
+      actions$.next(MarketplaceActions.buyConfirmed({ listing: mockConfirmedPurchase }));
+      await resultPromise;
+
+      expect(notificationServiceMock.success).toHaveBeenCalledWith(
+        'Purchase complete',
+        expect.stringContaining('5000'),
+      );
+    });
+  });
+
+  // ── Cancel Listing ───────────────────────────────────────────────────────────
+
+  describe('cancelListing$', () => {
+    it('emits cancelListingSuccess on success', async () => {
+      marketplaceServiceMock.cancelListing.mockResolvedValue(undefined);
+
+      const resultPromise = firstValueFrom(effects.cancelListing$);
+      actions$.next(MarketplaceActions.cancelListing({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.cancelListingSuccess({ listingId: mockListing.id }),
+      );
+      expect(marketplaceServiceMock.cancelListing).toHaveBeenCalledWith(mockListing.id);
+    });
+
+    it('emits cancelListingFailure on error', async () => {
+      marketplaceServiceMock.cancelListing.mockRejectedValue(new Error('Not the listing owner'));
+
+      const resultPromise = firstValueFrom(effects.cancelListing$);
+      actions$.next(MarketplaceActions.cancelListing({ listingId: mockListing.id }));
+      const action = await resultPromise;
+
+      expect(action).toEqual(
+        MarketplaceActions.cancelListingFailure({ error: 'Not the listing owner' }),
+      );
+    });
+  });
+
+  describe('cancelListingSuccess$', () => {
+    it('shows a success notification', async () => {
+      const resultPromise = firstValueFrom(effects.cancelListingSuccess$);
+      actions$.next(MarketplaceActions.cancelListingSuccess({ listingId: mockListing.id }));
+      await resultPromise;
+
+      expect(notificationServiceMock.success).toHaveBeenCalledWith(
+        'Listing cancelled',
+        'Your listing has been cancelled',
+      );
+    });
+  });
+
+  describe('cancelListingFailure$', () => {
+    it('shows an error notification', async () => {
+      const resultPromise = firstValueFrom(effects.cancelListingFailure$);
+      actions$.next(MarketplaceActions.cancelListingFailure({ error: 'Not the listing owner' }));
+      await resultPromise;
+
+      expect(notificationServiceMock.error).toHaveBeenCalledWith(
+        'Failed to cancel listing',
+        'Not the listing owner',
       );
     });
   });

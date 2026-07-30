@@ -3,8 +3,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Observable, Subject } from 'rxjs';
 import { map, distinctUntilChanged, takeUntil } from 'rxjs/operators';
-import { NgIf, NgFor, AsyncPipe, NgClass } from '@angular/common';
-import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
+import { NgIf, NgFor, AsyncPipe } from '@angular/common';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
 import { CreditAmountPipe } from '../../../shared/pipes/credit-amount.pipe';
@@ -39,9 +38,7 @@ import {
     NgIf,
     NgFor,
     AsyncPipe,
-    NgClass,
     RouterLink,
-    StatusBadgeComponent,
     LoadingSpinnerComponent,
     EmptyStateComponent,
     CreditAmountPipe,

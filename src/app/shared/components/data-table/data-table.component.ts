@@ -10,6 +10,7 @@ import {
   TemplateRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 
 import {
   ColumnDef,
@@ -32,7 +33,7 @@ export type {
 @Component({
   selector: 'app-data-table',
   standalone: true,
-  imports: [CommonModule, EmptyStateComponent, PaginationControlsComponent],
+  imports: [CommonModule, ScrollingModule, EmptyStateComponent, PaginationControlsComponent],
   templateUrl: './data-table.component.html',
   styleUrls: ['./data-table.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +49,7 @@ export class DataTableComponent<T extends object = Record<string, unknown>> impl
   @Input() sortColumn = '';
   @Input() sortDirection: SortDirection = 'asc';
   @Input() virtualScroll = false;
+  @Input() rowHeight = 48;
 
   @Output() sort = new EventEmitter<SortEvent>();
   @Output() page = new EventEmitter<number>();
@@ -65,16 +67,20 @@ export class DataTableComponent<T extends object = Record<string, unknown>> impl
     }
   }
 
-  protected trackByRow(index: number, item: T): unknown {
+  // Arrow-bound: cdkVirtualFor invokes trackBy as a plain function call
+  // (not a method call on the component), so a normal method would lose
+  // its `this` binding. *ngFor's differ happens to preserve `this`, but
+  // we can't rely on that difference between the two rendering paths.
+  protected trackByRow = (index: number, item: T): unknown => {
     if (this.trackByFn) {
       return this.trackByFn(index, item);
     }
     return (item as Record<string, unknown>)['id'] ?? index;
-  }
+  };
 
-  protected trackBySkeleton(_index: number): number {
+  protected trackBySkeleton = (_index: number): number => {
     return _index;
-  }
+  };
 
   protected get align(): Record<string, string> {
     return { center: 'text-center', right: 'text-right' };

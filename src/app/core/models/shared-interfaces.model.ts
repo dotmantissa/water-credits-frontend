@@ -17,8 +17,10 @@ export interface FormStep {
   description: string;
 }
 
+import { SensorParameterKey } from './sensor-reading.model';
+
 export interface ParameterConfig {
-  key: string;
+  key: SensorParameterKey;
   label: string;
   unit: string;
   icon: LucideIconData;
