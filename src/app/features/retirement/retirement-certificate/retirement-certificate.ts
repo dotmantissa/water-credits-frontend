@@ -213,7 +213,7 @@ import {
                 class="btn btn-primary flex items-center gap-2 text-sm"
               >
                 <lucide-angular [img]="Download" class="w-4 h-4"></lucide-angular>
-                {{ downloading ? 'Generating...' : 'Download PDF' }}
+                {{ downloading ? 'Generating...' : 'Download Certificate' }}
               </button>
             </div>
           </div>

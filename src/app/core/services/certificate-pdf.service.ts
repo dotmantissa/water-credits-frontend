@@ -1,7 +1,18 @@
 import { Injectable } from '@angular/core';
-import type { TDocumentDefinitions, Content, StyleDictionary } from 'pdfmake/interfaces';
+import type {
+  TCreatedPdf,
+  TDocumentDefinitions,
+  Content,
+  StyleDictionary,
+  TVirtualFileSystem,
+} from 'pdfmake/interfaces';
 
 import { RetirementCertificate } from '../models/retirement.model';
+
+interface PdfMakeApi {
+  addVirtualFileSystem(vfs: TVirtualFileSystem): void;
+  createPdf(documentDefinitions: TDocumentDefinitions): TCreatedPdf;
+}
 
 const STELLAR_EXPLORER = 'https://testnet.stellarchain.io/tx/';
 const PRIMARY_BLUE = '#1a56db';
@@ -13,24 +24,31 @@ const BORDER_COLOR = '#cbd5e1';
 @Injectable({ providedIn: 'root' })
 export class CertificatePdfService {
   async generate(cert: RetirementCertificate): Promise<void> {
-    const [pdfMakeModule, vfsModule, QRCode] = await Promise.all([
+    const [pdfMakeModule, vfsModule] = await Promise.all([
       import('pdfmake/build/pdfmake'),
       import('pdfmake/build/vfs_fonts'),
-      import('qrcode'),
     ]);
 
-     
-    (pdfMakeModule as any).vfs = (vfsModule as any).vfs;
+    // The UMD builds expose their API on the namespace `default` when loaded
+    // through a bundler, so unwrap it and register the bundled Roboto fonts.
+    const pdfMake = this.asPdfMake(pdfMakeModule);
+    const vfs = (vfsModule as { default?: TVirtualFileSystem }).default;
+    if (vfs) {
+      pdfMake.addVirtualFileSystem(vfs);
+    }
 
-    const qrDataUrl: string = await QRCode.toDataURL(STELLAR_EXPLORER + cert.txHash, {
-      width: 120,
-      margin: 0,
-    });
+    const docDef = this.buildDocument(cert, await this.buildQrDataUrl(cert.txHash));
+    pdfMake.createPdf(docDef).download(this.filename(cert));
+  }
 
-    const docDef = this.buildDocument(cert, qrDataUrl);
+  async buildQrDataUrl(txHash: string): Promise<string> {
+    const QRCode = await import('qrcode');
+    return QRCode.toDataURL(STELLAR_EXPLORER + txHash, { width: 120, margin: 0 });
+  }
 
-     
-    (pdfMakeModule as any).createPdf(docDef).download(this.filename(cert));
+  private asPdfMake(module: unknown): PdfMakeApi {
+    const withDefault = module as { default?: PdfMakeApi };
+    return (withDefault.default ?? module) as PdfMakeApi;
   }
 
   buildDocument(cert: RetirementCertificate, qrDataUrl: string): TDocumentDefinitions {
@@ -225,7 +243,7 @@ export class CertificatePdfService {
         margin: [0, 0, 0, 3] as [number, number, number, number],
       },
       fieldValue: { fontSize: 11, bold: true, color: TEXT_DARK },
-      monoValue: { fontSize: 8, color: TEXT_MID, font: 'Courier' },
+      monoValue: { fontSize: 8, color: TEXT_MID },
       idValue: { fontSize: 8, color: TEXT_LIGHT },
       qrLabel: { fontSize: 7, color: TEXT_LIGHT, alignment: 'center' },
     };

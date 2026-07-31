@@ -59,7 +59,9 @@ describe('RetirementCertificateComponent', () => {
   it('should have download button in template', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const buttons = compiled.querySelectorAll('button');
-    const downloadBtn = Array.from(buttons).find((b) => b.textContent?.includes('Download PDF'));
+    const downloadBtn = Array.from(buttons).find((b) =>
+      b.textContent?.includes('Download Certificate'),
+    );
     expect(downloadBtn).toBeTruthy();
   });
 

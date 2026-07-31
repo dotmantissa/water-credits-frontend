@@ -85,11 +85,22 @@ describe('CertificatePdfService', () => {
       const contentStr = JSON.stringify(doc.content);
       expect(contentStr).toContain('data:image/png;base64,mockqr');
     });
+  });
 
-    it('should include a QR code link to Stellar testnet explorer', () => {
-      const qrUrl = 'data:image/png;base64,mockqr';
-      const doc = service.buildDocument(mockCert, qrUrl);
-      expect(doc.content).toBeDefined();
+  describe('buildQrDataUrl', () => {
+    it('should generate a PNG data URL for the Stellar testnet explorer link', async () => {
+      const qr = await service.buildQrDataUrl(mockCert.txHash);
+      expect(qr.startsWith('data:image/png;base64,')).toBe(true);
+      expect(qr.length).toBeGreaterThan(200);
+    });
+
+    it('should encode the transaction hash into the QR payload', async () => {
+      const first = await service.buildQrDataUrl(mockCert.txHash);
+      const again = await service.buildQrDataUrl(mockCert.txHash);
+      const other = await service.buildQrDataUrl('different-tx-hash');
+
+      expect(first).toBe(again);
+      expect(first).not.toBe(other);
     });
   });
 });
