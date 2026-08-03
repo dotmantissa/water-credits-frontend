@@ -10,12 +10,13 @@ import {
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { SearchInputComponent } from '../../../shared/components/search-input/search-input';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
-import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import { Project, ProjectFilters } from '../../../core/models/project.model';
 import * as ProjectsActions from '../../../core/store/projects/projects.actions';
 import {
   selectAllProjects,
   selectProjectsLoading,
+  selectProjectsError,
   selectProjectsPagination,
   selectProjectsFilters,
 } from '../../../core/store/projects/projects.selectors';
@@ -32,7 +33,7 @@ import { LucideAngularModule, Plus, LayoutGrid, Table2 } from 'lucide-angular';
     StatusBadgeComponent,
     SearchInputComponent,
     EmptyStateComponent,
-    LoadingSpinnerComponent,
+    LoadingStateComponent,
     LucideAngularModule,
   ],
   template: `
@@ -103,11 +104,13 @@ import { LucideAngularModule, Plus, LayoutGrid, Table2 } from 'lucide-angular';
       </div>
 
       <div *ngIf="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <ng-container *ngIf="loading$ | async">
-          <div class="col-span-full">
-            <app-loading-spinner size="lg" label="Loading projects..."></app-loading-spinner>
-          </div>
-        </ng-container>
+        <div class="col-span-full">
+          <app-loading-state
+            [loading]="(loading$ | async) ?? false"
+            skeleton="card"
+            loadingLabel="Loading projects..."
+          ></app-loading-state>
+        </div>
         <ng-container *ngIf="!(projects$ | async)?.length">
           <div class="col-span-full">
             <app-empty-state
@@ -146,6 +149,7 @@ import { LucideAngularModule, Plus, LayoutGrid, Table2 } from 'lucide-angular';
 export class ProjectsListComponent implements OnInit, OnDestroy {
   protected projects$: Observable<Project[]>;
   protected loading$: Observable<boolean>;
+  protected error$: Observable<string | null>;
   protected pagination$: Observable<{
     page: number;
     limit: number;
@@ -177,6 +181,7 @@ export class ProjectsListComponent implements OnInit, OnDestroy {
   ) {
     this.projects$ = this.store.select(selectAllProjects);
     this.loading$ = this.store.select(selectProjectsLoading);
+    this.error$ = this.store.select(selectProjectsError);
     this.pagination$ = this.store.select(selectProjectsPagination);
     this.filters$ = this.store.select(selectProjectsFilters);
   }

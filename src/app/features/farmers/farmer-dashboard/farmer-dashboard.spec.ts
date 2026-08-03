@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
+import { provideRouter } from '@angular/router';
 import { reducers } from '../../../core/store/app.state';
 
 import { FarmerDashboardComponent } from './farmer-dashboard';
@@ -12,7 +13,7 @@ describe('FarmerDashboardComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [FarmerDashboardComponent],
-      providers: [provideStore(reducers), provideEffects([])],
+      providers: [provideStore(reducers), provideEffects([]), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(FarmerDashboardComponent);

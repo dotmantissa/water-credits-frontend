@@ -6,7 +6,7 @@ import { Store } from '@ngrx/store';
 import { Actions, ofType } from '@ngrx/effects';
 import { Observable, Subject, takeUntil } from 'rxjs';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
+import { LoadingStateComponent } from '../../../shared/components/loading-state/loading-state';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Project, ProjectCreate } from '../../../core/models/project.model';
 import { AppState } from '../../../core/store/app.state';
@@ -14,6 +14,7 @@ import * as FarmersActions from '../../../core/store/farmers/farmers.actions';
 import {
   selectParcels,
   selectParcelsLoading,
+  selectFarmersError,
   selectFarmerRegistering,
 } from '../../../core/store/farmers/farmers.selectors';
 import {
@@ -38,7 +39,7 @@ import {
     NgFor,
     AsyncPipe,
     StatusBadgeComponent,
-    EmptyStateComponent,
+    LoadingStateComponent,
     LucideAngularModule,
   ],
   template: `
@@ -189,22 +190,15 @@ import {
         </div>
       </div>
 
-      <div *ngIf="loading$ | async" class="flex items-center justify-center py-20">
-        <div
-          class="animate-spin w-8 h-8 border-2 border-stellar-blue border-t-transparent rounded-full"
-        ></div>
-      </div>
-
-      <ng-container *ngIf="!(loading$ | async)">
-        <div *ngIf="(parcels$ | async)?.length === 0">
-          <app-empty-state
-            title="No parcels registered"
-            message="Register your first farmland parcel to start earning water quality credits."
-            actionLabel="Register Parcel"
-            (action)="showForm = true"
-          ></app-empty-state>
-        </div>
-
+      <app-loading-state
+        [loading]="(loading$ | async) ?? false"
+        [error]="error$ | async"
+        [empty]="!(parcels$ | async)?.length"
+        skeleton="card"
+        emptyTitle="No parcels registered"
+        emptyMessage="Register your first farmland parcel to start earning water quality credits."
+        (retry)="loadParcels()"
+      >
         <div
           *ngIf="(parcels$ | async)?.length"
           class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
@@ -264,13 +258,14 @@ import {
             </div>
           </div>
         </div>
-      </ng-container>
+      </app-loading-state>
     </div>
   `,
 })
 export class FarmerParcelsComponent implements OnInit, OnDestroy {
   protected loading$: Observable<boolean>;
   protected saving$: Observable<boolean>;
+  protected error$: Observable<string | null>;
   protected parcels$: Observable<Project[]>;
   protected showForm = false;
   protected selectedCrop = '';
@@ -305,6 +300,7 @@ export class FarmerParcelsComponent implements OnInit, OnDestroy {
   ) {
     this.loading$ = this.store.select(selectParcelsLoading);
     this.saving$ = this.store.select(selectFarmerRegistering);
+    this.error$ = this.store.select(selectFarmersError);
     this.parcels$ = this.store.select(selectParcels);
   }
 
@@ -330,6 +326,10 @@ export class FarmerParcelsComponent implements OnInit, OnDestroy {
 
   trackByParcel(_index: number, parcel: Project): string {
     return parcel.id;
+  }
+
+  loadParcels(): void {
+    this.store.dispatch(FarmersActions.loadParcels());
   }
 
   saveParcel(): void {
