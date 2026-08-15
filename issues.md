@@ -268,3 +268,244 @@ The roadmap explicitly flags this in Known Limitations: *"the wallet store's eff
 **Labels:** `type: bug`, `difficulty: advanced`, `area: wallet`, `area: auth`, `priority: v1.0`
 
 **Self-check:** If solved, this issue moves the v1.0 production-ready goal forward because it eliminates a broken post-refresh state that makes every wallet-dependent UI element (address display, transaction signing, certificate view) appear broken on every page load in production.
+
+---
+
+## Issue 7
+
+**Title:** Toast notification renderer is missing — every effect action result is silently swallowed with no user feedback
+
+**Why this matters now:**
+`NotificationService` is called by every NgRx effect in the codebase (`success`, `error`, `warning`, `info`) to communicate the outcome of every user action — retire credits, buy listing, cast vote, register parcel, login failure, session expiry. But there is no component anywhere in the DOM that subscribes to `NotificationService.notifications$` and renders those messages. The `DefaultLayoutComponent` renders only `<app-header>`, `<app-sidebar>`, and `<router-outlet>`. The result: the app appears completely unresponsive to user actions — no confirmation after a retirement, no error when a network request fails, no "session expired" warning on force-logout. This is a v1.0 blocker regardless of backend wiring status.
+
+**Problem / What:**
+Create `src/app/shared/components/toast-container/toast-container.component.ts` — a standalone component that:
+1. Injects `NotificationService` and subscribes to `notifications$` using `AsyncPipe`.
+2. Renders each `ToastNotification` as a dismissible toast card positioned fixed bottom-right (or top-right), stacked vertically.
+3. Uses `@angular/animations` for enter/leave transitions (slide + fade) that respect `prefers-reduced-motion`.
+4. Auto-dismisses after `notification.duration` ms (default 5000); `duration: 0` means persistent until manually dismissed.
+5. Calls `notificationService.remove(id)` on manual close or auto-timeout.
+6. Type-maps `'success' | 'error' | 'info' | 'warning'` to distinct colour/icon treatments using existing design tokens (`environmental-green`, `retirement-red`, `stellar-blue`, `credit-gold`).
+
+Add `<app-toast-container>` to `DefaultLayoutComponent`'s template. The `UIState` notifications slice already exists in the store and is populated by `addNotification` actions — the `ToastContainerComponent` should read exclusively from `NotificationService.notifications$` (the service-level BehaviorSubject), **not** from the NgRx store, since the service is already the source of truth and all effects already call it directly.
+
+**Key Challenges:**
+- Two parallel notification systems exist: `NotificationService` (BehaviorSubject, used by all effects) and `UIState.notifications` (NgRx store, populated by `UIActions.addNotification` but never dispatched by any effect). These must be reconciled — the correct path is to keep `NotificationService` as the sole source and remove or ignore the unused store slice, not duplicate state.
+- Angular animations require `BrowserAnimationsModule` or `provideAnimationsAsync()` in `app.config.ts` — check whether it is already provided before adding.
+- The toast stack must be accessible: `role="status"` / `aria-live="polite"` for `info`/`success`, `role="alert"` / `aria-live="assertive"` for `error`/`warning`. Focus must not be stolen on toast appearance.
+- `prefers-reduced-motion: reduce` must disable the slide/fade and show toasts instantly.
+- The component must be covered by a spec: verify that a `success` notification appears in the DOM and is removed after `remove()` is called.
+
+**Acceptance Criteria:**
+- `<app-toast-container>` is present in `DefaultLayoutComponent`.
+- Calling `notificationService.success('Title', 'Message')` renders a visible green toast within one change-detection cycle.
+- Calling `notificationService.error(...)` renders a red toast with `role="alert"`.
+- Auto-dismiss fires after the configured duration; manual close via ✕ button calls `notificationService.remove(id)`.
+- `prefers-reduced-motion` media query disables animation.
+- `toast-container.component.spec.ts` covers: success renders, error renders with `role="alert"`, manual close calls `remove`, auto-dismiss timing.
+- `ng build --configuration production` passes; no `any` usage.
+
+**Relevant files/functions:**
+- `src/app/core/services/notification.service.ts` — `notifications$`, `remove(id)`
+- `src/app/shared/layouts/default-layout/default-layout.ts` — add `<app-toast-container>`
+- `src/app/app.config.ts` — check/add `provideAnimationsAsync()`
+- `src/app/core/store/ui/ui.actions.ts` — `addNotification` (currently unused by effects; reconcile or remove)
+- New: `src/app/shared/components/toast-container/toast-container.component.ts` + spec
+
+**Out of scope:** The in-app notification centre / bell panel (that's a v1.1 feature); email notification preferences; changes to `NotificationService` method signatures.
+
+**Labels:** `type: feature`, `difficulty: intermediate`, `area: ui`, `priority: v1.0`
+
+**Self-check:** If solved, this issue moves v1.0 forward because it unblocks every user-facing feedback loop — without it, the app is functionally opaque after every action regardless of how well the backend is wired.
+
+---
+
+## Issue 8
+
+**Title:** `environment.prod.ts` does not exist — production build falls back to development placeholders and `REPLACE_WITH_DEPLOYED_ADDRESS` contract stubs
+
+**Why this matters now:**
+`environment.prod.ts` is listed as a v1.0 deliverable and is completely absent from the repository. The CI pipeline explicitly works around this: `cp src/environments/environment.ts.example src/environments/environment.ts`. The `angular.json` `fileReplacements` for the `production` configuration references `environment.prod.ts` — if that entry exists and the file doesn't, production builds fail. If it doesn't exist in `angular.json`, the production build uses the development config with `production: false`, `apiUrl: 'http://localhost:3000/api/v1'`, and `REPLACE_WITH_DEPLOYED_ADDRESS` for all four contract addresses. Either way, there is no deployable production configuration today.
+
+**Problem / What:**
+1. Create `src/environments/environment.prod.ts` with `production: true`, the correct Stellar mainnet RPC URL, placeholder structure for all four contract addresses (documented clearly for the deployer), and `stellarNetwork: 'public'`.
+2. Create `src/environments/environment.staging.ts` with `production: false`, testnet config, and documented placeholders — used for CI preview deployments.
+3. Verify `angular.json` has correct `fileReplacements` entries pointing to these files for the `production` and `staging` configurations.
+4. Update the CI workflow to stub `environment.prod.ts` (not just `environment.ts`) when building with `--configuration production` in the build job — using `environment.ts.example` as the stub so the CI build continues to pass without real contract addresses.
+5. Update `CONTRIBUTING.md` and the repo `README.md` "Environment Configuration" section to document the expected values and how to obtain Stellar contract addresses from the backend deployment.
+
+**Key Challenges:**
+- The `fileReplacements` entry in `angular.json` must be checked against the actual Angular build configuration name (`production` vs `production-build` etc.) — Angular 17+ uses `@angular/build:application` which may have different config key names than the older `@angular-devkit/build-angular:browser`.
+- `environment.prod.ts` must never be committed with real contract addresses or secrets; a `.gitignore` entry or clear `REPLACE_WITH_DEPLOYED_ADDRESS` sentinel must enforce this.
+- The staging environment must use testnet Soroban RPC (`https://soroban-testnet.stellar.org`) while production uses mainnet (`https://soroban-mainnet.stellar.org`) — verify the correct mainnet endpoint from Stellar documentation.
+- `nginx.conf` does not proxy the backend — API calls go directly to `environment.apiUrl`. Document the expected value for production deployments (either a load-balancer URL or the same-host `/api/v1` path).
+
+**Acceptance Criteria:**
+- `src/environments/environment.prod.ts` exists with `production: true`, `stellarNetwork: 'public'`, mainnet Soroban RPC URL, and all four contract address fields set to documented `REPLACE_WITH_DEPLOYED_ADDRESS` sentinels.
+- `src/environments/environment.staging.ts` exists with testnet config.
+- `ng build --configuration production` succeeds locally (using the `.example` stub or actual values).
+- CI `build` job uses the correct stub file for `--configuration production`.
+- `README.md` "Environment Configuration" section documents the three environment files, their intended use, and how to fill in contract addresses.
+- `environment.prod.ts` and `environment.staging.ts` are listed in `.gitignore` (only the `.example` files are tracked).
+
+**Relevant files/functions:**
+- `src/environments/` — new files `environment.prod.ts`, `environment.staging.ts`
+- `src/environments/environment.ts.example` — reference for structure
+- `angular.json` — `fileReplacements` under `configurations.production`
+- `.github/workflows/ci.yml` — `Prepare environment file` step in `build` job
+- `README.md` — "Environment Configuration" section
+- `.gitignore`
+
+**Out of scope:** Deploying the contracts; setting up deployment pipelines beyond CI build; adding runtime environment variable injection (that would require a separate server-side config approach).
+
+**Labels:** `type: feature`, `type: devops`, `difficulty: intermediate`, `area: config`, `priority: v1.0`
+
+**Self-check:** If solved, this issue moves v1.0 forward because it creates the missing artifact that separates a deployable production build from a development build — without it there is no production configuration to deploy.
+
+---
+
+## Issue 9
+
+**Title:** Implement `environment.prod.ts`-aware virtual scrolling for sensor data tables and retirement history using `@angular/cdk/scrolling`
+
+**Why this matters now:**
+The roadmap lists virtual scrolling as a v1.0 performance deliverable. Two specific views accumulate unbounded DOM nodes under real usage: the sensor readings raw data table (new rows pushed every few seconds from the WebSocket real-time buffer, potentially thousands per session) and the retirement history list (could be hundreds of records for active credit buyers). Both currently render all rows into the DOM. `@angular/cdk` is already a transitive dependency via Angular Material — it does not add bundle weight.
+
+**Problem / What:**
+There are two distinct cases that require different CDK approaches:
+
+**Case 1 — `RetirementHistoryComponent` (paginated list, finite data):**
+Use `ScrollingModule`'s `<cdk-virtual-scroll-viewport>` with `*cdkVirtualFor` as a drop-in replacement for `*ngFor` on the retirement rows. The fixed item size variant (`itemSize` in pixels) is appropriate here since row height is uniform. The existing `PaginationControlsComponent` can remain — virtual scroll handles within-page rendering; pagination handles page fetching.
+
+**Case 2 — `SensorsDashboard` real-time buffer (unbounded, auto-growing):**
+The `realTimeBuffer` in `SensorsState` is already capped at 100 items in the reducer (`slice(0, 100)`). The table that renders `recentReadings` should use `<cdk-virtual-scroll-viewport>` with `*cdkVirtualFor`. More importantly, the buffer cap strategy should be made explicit and configurable via a constant in `app.constants.ts` rather than a magic `100` in the reducer.
+
+**Key Challenges:**
+- `cdkVirtualFor` requires a fixed `itemSize` (pixels). If row heights vary (e.g. a retirement with a long `purpose` string), the standard fixed-size viewport will miscalculate scroll position. Either enforce a minimum fixed height via CSS (`min-height`, `overflow: hidden`) or use the `AutoSizeVirtualScrollStrategy` from `@angular/cdk-experimental/scrolling` — document the tradeoff.
+- `DataTableComponent` (the shared reusable table) uses a standard `*ngFor` internally. Virtual scrolling cannot be added to it generically without changing its API — it is better applied at the feature component level where the scroll viewport is owned. Do not modify `DataTableComponent` itself.
+- The retirement history component uses `AsyncPipe` with an Observable of paginated results. The `*cdkVirtualFor` `[cdkVirtualForOf]` input must receive the array synchronously or via a resolved observable — integrate correctly with the existing `selectRetirements` selector.
+- Change detection: both components use or should use `ChangeDetectionStrategy.OnPush`. `cdkVirtualFor` is compatible with OnPush but requires `markForCheck()` discipline — verify no stale view arises when new real-time readings arrive.
+
+**Acceptance Criteria:**
+- `RetirementHistoryComponent` renders rows via `<cdk-virtual-scroll-viewport>` + `*cdkVirtualFor`; DOM node count stays constant as more retirements load (verified via browser DevTools Elements panel).
+- `SensorsDashboard` real-time readings table uses `<cdk-virtual-scroll-viewport>` + `*cdkVirtualFor`; DOM node count stays constant as the buffer fills.
+- The real-time buffer cap (`100`) is extracted to `REALTIME_BUFFER_MAX` in `src/app/core/constants/app.constants.ts` and referenced from the reducer.
+- `ScrollingModule` is imported only in the two affected feature components (not globally).
+- Both components pass their existing `should create` spec after the change; no new spec regressions.
+- `ng build --configuration production` stays within bundle budgets.
+
+**Relevant files/functions:**
+- `src/app/features/retirement/retirement-history/retirement-history.ts`
+- `src/app/features/sensors/sensors-dashboard/sensors-dashboard.ts`
+- `src/app/core/store/sensors/sensors.reducer.ts` — `slice(0, 100)` magic number
+- `src/app/core/constants/app.constants.ts` — add `REALTIME_BUFFER_MAX`
+- `src/app/shared/components/data-table/data-table.component.ts` — read only; do not modify
+
+**Out of scope:** Virtual scrolling in `DataTableComponent` itself; virtual scrolling for projects list (paginated at API level, no unbounded growth); `@angular/cdk-experimental` AutoSizeVirtualScrollStrategy (document as a follow-on if row heights prove variable).
+
+**Labels:** `type: feature`, `type: performance`, `difficulty: intermediate`, `area: ui`, `area: sensors`, `priority: v1.0`
+
+**Self-check:** If solved, this issue moves v1.0 performance forward because it prevents the two views most likely to accumulate thousands of DOM nodes under real usage — sensor streaming and retirement history — from degrading into unresponsive tables.
+
+---
+
+## Issue 10
+
+**Title:** Light mode preference is not persisted — resets to dark on every page reload; `[data-theme="light"]` CSS overrides incomplete across components
+
+**Why this matters now:**
+The roadmap lists light mode as a v1.1 deliverable. The infrastructure is 80% there: `setDarkMode` action, `isDarkMode` in `UIState`, `selectIsDarkMode` selector, `document.documentElement.classList.toggle('dark')` in `HeaderComponent.ngOnInit`, and `[data-theme="light"]` CSS custom property overrides in `_variables.scss`. The only missing piece is persistence — `UIState` always initialises with `isDarkMode: true`, so every hard refresh resets to dark regardless of what the user chose. This makes the toggle functionally useless: users cannot maintain a light mode session.
+
+**Problem / What:**
+Two things need to happen:
+
+**Part 1 — Persistence:**
+Add a `UIEffects` class (new file) with two effects:
+1. `persistTheme$` — listens for `setDarkMode` and writes `isDark` to `localStorage` under a key defined in `STORAGE_KEYS` (`app.constants.ts`).
+2. Read-on-init — in `ngrxOnInitEffects()` (same pattern as `AuthEffects`), read `localStorage` for the saved theme and dispatch `setDarkMode({ isDark })` before any component renders. This must fire before the initial `ClassList.toggle('dark')` in `HeaderComponent.ngOnInit` to avoid a flash of the wrong theme.
+
+**Part 2 — CSS completeness:**
+Audit every feature component and shared component for hardcoded `dark:` Tailwind variants that do not have a corresponding `[data-theme="light"]` SCSS override, or `bg-dark-bg` / `text-dark-*` custom classes that only exist in dark mode. The goal is that `document.documentElement.setAttribute('data-theme', 'light')` (alongside removing the `dark` class) produces a legible, non-broken UI across all pages — not pixel-perfect, just no white-on-white or invisible elements.
+
+**Key Challenges:**
+- The theme flash (FOUC) on hard refresh: `ngrxOnInitEffects` fires after Angular bootstraps, which is after the first render. The only way to fully eliminate flash is to inline a tiny script in `index.html` that reads localStorage and sets the `dark` class synchronously before Angular loads — a standard pattern. This is a `<script>` in `<head>`, not an Angular effect.
+- `UIEffects` must be registered in `app.config.ts`'s `provideEffects` array — it does not yet exist.
+- `STORAGE_KEYS` in `app.constants.ts` already has `AUTH_TOKEN`; add `THEME` alongside it.
+- The CSS audit is broad but mechanical — use the browser's element inspector on each page in light mode to identify breakage, then fix in the relevant component SCSS or global `styles.scss`.
+
+**Acceptance Criteria:**
+- Setting light mode, hard-refreshing the page, and returning preserves the light mode preference.
+- No theme flash on hard refresh (inline script in `index.html` reads localStorage and sets class synchronously).
+- `UIEffects` is registered in `app.config.ts`; has a spec covering the persist and rehydrate paths.
+- All authenticated routes render with legible contrast in light mode — no white text on white background, no invisible icons.
+- `ng lint` passes; `ng build` passes.
+
+**Relevant files/functions:**
+- `src/app/core/store/ui/ui.actions.ts` — `setDarkMode`
+- `src/app/core/store/ui/ui.reducer.ts` — `initialState.isDarkMode`
+- `src/app/core/constants/app.constants.ts` — add `STORAGE_KEYS.THEME`
+- `src/app/shared/layouts/header/header.ts` — `toggleDarkMode()`, `ngOnInit` class toggle
+- `src/index.html` — add inline `<script>` for flash prevention
+- `src/styles.scss`, `src/theme/_variables.scss` — `[data-theme="light"]` overrides
+- New: `src/app/core/store/ui/ui.effects.ts` + `ui.effects.spec.ts`
+- `src/app/app.config.ts` — register `UIEffects`
+
+**Out of scope:** Per-component theming beyond what's needed for legibility; system `prefers-color-scheme` detection (document as a follow-on); the notification centre bell panel (Issue 11).
+
+**Labels:** `type: feature`, `difficulty: intermediate`, `area: ui`, `area: theme`, `priority: v1.1`
+
+**Self-check:** If solved, this issue moves the v1.1 light mode deliverable forward because it makes the existing toggle actually work end-to-end — persistence + flash prevention + legible rendering — rather than being a stateless button that resets on every reload.
+
+---
+
+## Issue 11
+
+**Title:** Implement the in-app notifications centre — bell icon panel with read/unread state, history, and `markNotificationsRead` dispatch
+
+**Why this matters now:**
+The roadmap lists "Notifications centre" as a v1.1 feature. The infrastructure is entirely ready: `UIState.notifications` (array of `Notification` objects with `read`, `timestamp`, `notificationType`), `addNotification` / `removeNotification` / `markNotificationsRead` actions, `selectUnreadNotificationCount` selector, and a bell icon in `HeaderComponent` with a hardcoded red dot. None of this is wired to any UI. This is a self-contained, high-value feature that meaningfully improves the UX of oracle operators and project developers who need to track events that happened while they weren't watching.
+
+**Problem / What:**
+Build a slide-out notification panel triggered by clicking the bell icon in `HeaderComponent`:
+
+1. **`NotificationPanelComponent`** (new standalone component, `shared/components/notification-panel/`):
+   - Renders `UIState.notifications` via `selectNotifications` selector, sorted newest-first.
+   - Groups by date (Today / Yesterday / Earlier).
+   - Each row: type icon (colour-coded), title, message, timestamp (`DurationPipe` for relative time), and a dismiss button (`removeNotification`).
+   - "Mark all read" button dispatches `markNotificationsRead`.
+   - Empty state when `notifications.length === 0`.
+   - Keyboard-accessible: `role="dialog"`, `aria-label="Notifications"`, focus-trapped while open (`ClickOutsideDirective` for mouse dismiss, `Escape` key for keyboard dismiss).
+
+2. **Wire `addNotification` into `NotificationService`** — every call to `notificationService.success/error/info/warning` should also dispatch `UIActions.addNotification` to the store so events are persisted in `UIState` and visible in the panel history. This is additive — `NotificationService` keeps its `BehaviorSubject` for the transient toast layer (Issue 7); the store receives a permanent copy.
+
+3. **`HeaderComponent`** — clicking the bell opens/closes the panel (toggle `UIState` or local boolean); the red dot becomes the `selectUnreadNotificationCount` selector value displayed as a badge (hidden when count is 0).
+
+**Key Challenges:**
+- `NotificationService` currently has no access to the NgRx `Store` — injecting it directly creates a potential DI issue since `NotificationService` is `providedIn: 'root'` and `Store` may not be available in some test contexts. Use a safe injection: `private store = inject(Store, { optional: true })` and guard the dispatch with `if (this.store)`.
+- The `Notification` interface in `ui.reducer.ts` uses `notificationType` (to avoid collision with the browser's native `Notification` global) — all code must use this field name consistently.
+- Focus trapping in the panel requires `@angular/cdk/a11y` `FocusTrap` or `FocusTrapFactory` — verify this is available as a transitive CDK dependency before importing.
+- The `DurationPipe` (`"2h ago"`) updates only on pipe evaluation — if the panel stays open, timestamps become stale. Either re-evaluate every 60s via `interval` + `AsyncPipe`, or accept that timestamps are accurate on open and stale while the panel is open (document the tradeoff).
+- The store `notifications` array must be bounded — `MAX_NOTIFICATIONS = 50` is already defined in the reducer; verify the cap is enforced correctly when notifications exceed 50.
+
+**Acceptance Criteria:**
+- Clicking the bell opens the notification panel; clicking again or pressing `Escape` closes it.
+- All notifications dispatched by effects appear in the panel with correct type icon and relative timestamp.
+- "Mark all read" dispatches `markNotificationsRead`; the badge disappears.
+- Individual dismiss (`removeNotification`) removes the item from both the panel and the store.
+- Panel is keyboard-navigable; focus is trapped when open; `role="dialog"` and `aria-label` are present.
+- `notification-panel.component.spec.ts` covers: renders notifications from store, mark-all-read dispatch, dismiss dispatch, empty state, badge count reflects `selectUnreadNotificationCount`.
+- `ng build` passes; `ng lint` passes with zero warnings.
+
+**Relevant files/functions:**
+- `src/app/core/store/ui/ui.actions.ts` — `addNotification`, `removeNotification`, `markNotificationsRead`
+- `src/app/core/store/ui/ui.reducer.ts` — `Notification` interface, `MAX_NOTIFICATIONS`
+- `src/app/core/store/ui/ui.selectors.ts` — `selectUnreadNotificationCount`, `selectNotifications` (add if missing)
+- `src/app/core/services/notification.service.ts` — add `Store` dispatch alongside existing `BehaviorSubject`
+- `src/app/shared/layouts/header/header.ts` — wire bell click, badge count
+- New: `src/app/shared/components/notification-panel/notification-panel.component.ts` + spec
+
+**Out of scope:** Email/push notification preferences (v1.1 follow-on); persisting notifications across browser sessions (localStorage); WebSocket-pushed notifications from the server (separate to the client-side toast/history pipeline built here).
+
+**Labels:** `type: feature`, `difficulty: intermediate`, `area: ui`, `priority: v1.1`
+
+**Self-check:** If solved, this issue moves the v1.1 notifications centre deliverable forward because it turns a non-functional bell icon and a fully-implemented store slice into a real, accessible notification history that gives operators visibility into past events.

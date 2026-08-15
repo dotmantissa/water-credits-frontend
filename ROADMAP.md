@@ -6,7 +6,7 @@ This document tracks the current status of the project and planned work. Last up
 
 ## Current Status — Beta
 
-The frontend is in active development against the testnet backend. The scaffold and core infrastructure are complete; the remaining work is API wiring, test coverage, and production hardening. The app is **not yet production-ready** — see known limitations below.
+The frontend is in active development against the testnet backend. Core infrastructure, store, and most feature components are complete. The remaining work is concentrated in: real-time WebSocket wiring, test coverage depth, toast rendering, and production hardening for v1.0.
 
 ---
 
@@ -18,129 +18,134 @@ The frontend is in active development against the testnet backend. The scaffold 
 - [x] Routing with lazy-loaded feature modules and role guards (`AuthGuard`, `RoleGuard`)
 - [x] `PendingChangesGuard` — blocks navigation away from unsaved wizard forms
 - [x] Freighter wallet integration (connect, sign challenge, sign transaction, network/address change listeners)
-- [x] JWT authentication flow (login, register, silent token refresh)
+- [x] JWT authentication flow (login, register, session rehydration on hard refresh)
 - [x] `SessionBusService` — 401 event bus to break DI cycle between `ApiService` and NgRx store
 - [x] WebSocket service (Socket.IO) with reconnection logic and project subscribe/unsubscribe
 - [x] ESLint + Prettier + commitlint + Husky pre-commit hooks
+- [x] CI/CD pipeline (GitHub Actions: lint → test → build, concurrency cancellation, coverage artifact upload)
+- [x] Docker image — multi-stage `Dockerfile` (Node build + nginx:alpine serve)
+- [x] nginx config — SPA fallback, gzip, security headers, 1-year cache on fingerprinted assets
 
 ### NgRx Store — Full Implementation
-- [x] **Auth** — actions, reducer, selectors, effects (login, logout, refresh, force-logout on 401, wallet connect/disconnect)
+- [x] **Auth** — actions, reducer, selectors, effects (login, logout, session rehydration, force-logout on 401)
 - [x] **Projects** — actions, reducer, selectors, effects (load list, load detail, create)
-- [x] **Sensors** — actions, reducer, selectors, effects (load history, real-time WebSocket readings & alerts)
-- [x] **Credits** — actions, reducer, selectors, effects (load portfolio, retire)
-- [x] **Retirement** — actions, reducer, selectors, effects (load list, load detail, retire credits, download certificate)
-- [x] **Marketplace** — actions, reducer, selectors, effects (load listings, load order book, create listing, buy, cancel order, load price history)
-- [x] **Governance** — actions, reducer, selectors, effects (load proposals, load detail, create proposal, cast vote, execute proposal)
-- [x] **Farmers** — actions, reducer, selectors, effects (load dashboard, load parcels, register parcel, load practices, enroll practice, load earnings)
+- [x] **Sensors** — actions, reducer, selectors, effects (load devices, real-time WebSocket readings & alerts)
+- [x] **Credits** — actions, reducer, selectors, effects (load portfolio, load transactions, retire)
+- [x] **Retirement** — actions, reducer, selectors, effects (load list, load detail, retire credits — full two-phase prepare/sign/submit flow)
+- [x] **Marketplace** — actions, reducer, selectors, effects (load listings, order book, create listing, buy — full two-phase flow, cancel order)
+- [x] **Governance** — actions, reducer, selectors, effects (load proposals, load detail, create proposal, cast vote — full two-phase XDR flow, execute proposal)
+- [x] **Farmers** — actions, reducer, selectors, effects (load parcels, register parcel, load farmer overview)
 - [x] **Admin** — actions, reducer, selectors, effects (load users, update roles, load oracles, update fees)
-- [x] **Analytics** — actions, reducer, selectors, effects (load overview, credits over time, price history)
-- [x] **Wallet** — actions, reducer, selectors (connect, disconnect, network/address sync)
-- [x] **UI** — actions, reducer, selectors (sidebar toggle, theme, active modal, notifications)
+- [x] **Analytics** — actions, reducer, selectors, effects (load overview, credits over time, recent retirements)
+- [x] **Wallet** — actions, reducer, selectors (connect, disconnect)
+- [x] **UI** — actions, reducer, selectors (sidebar toggle, dark mode, notifications queue with unread count)
 - [x] `CacheInvalidationEffects` — cross-slice cache invalidation triggered by success actions
 - [x] `LoadingStateHelper` + `LoadingStateSelector` — shared loading/error state utilities
 
 ### Core Services
-- [x] `ApiService` — Axios-based HTTP client with JWT interceptor and 401 handling
-- [x] `AuthService` — login, register, token management
-- [x] `WalletService` — Freighter API wrapper
-- [x] `WebsocketService` — Socket.IO client with typed event callbacks
-- [x] `ProjectsService`, `SensorsService`, `CreditsService`, `RetirementService`
-- [x] `MarketplaceService`, `GovernanceService`, `FarmersService`
-- [x] `AdminService` (oracle management, fee config, user management)
-- [x] `AnalyticsService` — dashboard overview, credits-over-time, price history
-- [x] `OracleService` — oracle node status
-- [x] `UsersService` — user role management
-- [x] `NotificationService` — toast/in-app notification queue
+- [x] `ApiService` — Axios HTTP client, JWT request interceptor, 401 → `SessionBusService`
+- [x] `AuthService` — login, register, token management, fetch current user
+- [x] `WalletService` — Freighter API wrapper (connect, signChallenge, signTx, checkConnection)
+- [x] `WebsocketService` — Socket.IO client, typed `sensorReadings$` / `sensorAlerts$` observables
+- [x] `ProjectsService`, `SensorsService`, `CreditsService`, `RetirementService` (two-phase + legacy fallback)
+- [x] `MarketplaceService` (two-phase buy + legacy fallback), `GovernanceService`, `FarmersService`
+- [x] `AdminService`, `AnalyticsService`, `OracleService`, `UsersService`
+- [x] `NotificationService` — toast queue (BehaviorSubject; renderer component pending — see v1.0 planned)
 - [x] `LoggingService` — structured client-side logging
-- [x] `CertificatePdfService` — pdfmake-based retirement certificate PDF generation and download
+- [x] `CertificatePdfService` — pdfmake PDF generation + QR code, lazy-loaded
 - [x] `SessionBusService` — 401 unauthorised event bus
 
 ### Shared Components
 - [x] Header, Sidebar, WalletConnect
-- [x] DataTable (sortable, paginated), SensorChart (Chart.js multi-line), CreditCard, MapView (Leaflet)
+- [x] DataTable (sortable, paginated), SensorChart (Chart.js multi-line time-series), CreditCard, MapView (Leaflet)
 - [x] LoadingSpinner, SkeletonLoader, EmptyState, ConfirmDialog, StatusBadge
 - [x] SearchInput, FilterPanel, PaginationControls
-- [x] RetireCreditsModal
-- [x] LoadingState (generic async wrapper component)
+- [x] RetireCreditsModal, LoadingState (generic async wrapper)
 
 ### Shared Pipes & Directives
 - [x] `TruncatePipe`, `StellarAddressPipe`, `DateFormatPipe`, `NumberAbbreviatePipe`, `DurationPipe`, `CreditAmountPipe`
 - [x] `TooltipDirective`, `ClickOutsideDirective`, `CopyToClipboardDirective`
 
-### Feature Modules (UI scaffolded, store wired)
+### Feature Modules
 - [x] **Auth** — login (Freighter wallet flow), register
-- [x] **Dashboard** — stats cards, projects map widget, recent retirements widget, credits-over-time chart, sensor alerts, oracle status
-- [x] **Projects** — list (map + table view), detail (tabbed: overview / sensors / credits / documents), registration wizard
-- [x] **Sensors** — real-time dashboard, historical charts, multi-parameter overlay, raw data table, sensor config
-- [x] **Credits** — portfolio view (holdings by project, value), credit detail
-- [x] **Marketplace** — listings, order book, create listing, buy flow (`marketplace-buy`), price chart (`marketplace-chart`)
-- [x] **Retirement** — retirement wizard form, certificate view, retirement history list
-- [x] **Farmers Portal** — farmer dashboard, parcel registration, practice enrollment, earnings
-- [x] **Governance** — proposals list, proposal detail (votes, deadline, execute), create proposal form
+- [x] **Dashboard** — stats cards, projects map widget, recent retirements widget, credits-over-time chart
+- [x] **Projects** — list (map + table toggle), detail (tabbed), registration wizard (5-step with `PendingChangesGuard`)
+- [x] **Sensors** — dashboard with multi-parameter charts, raw data table, device list, sensor config
+- [x] **Credits** — portfolio view (holdings, value, retire action), credit detail
+- [x] **Marketplace** — listings, order book, create listing, buy flow (two-phase Freighter), candlestick price chart
+- [x] **Retirement** — wizard form, certificate page (HTML + PDF download + print), retirement history list
+- [x] **Governance** — proposals list, proposal detail (vote + execute), create proposal form; on-chain vote via Freighter fully wired
+- [x] **Farmers Portal** — farmer dashboard, parcel registration (store-wired), BMP practices UI, earnings view
 - [x] **Admin Panel** — admin dashboard, oracle management, fee configuration, user management
 - [x] **Explore** — public (unauthenticated) project browser
 
-### Testing
-- [x] `AuthEffects` spec
-- [x] `SensorsEffects` spec
-- [x] `RetirementEffects` spec
-- [x] `MarketplaceEffects` spec (comprehensive — 20k file)
-- [x] `GovernanceEffects` spec
-- [x] `FarmersEffects` spec
+### Stellar Transaction Signing (all three flows fully implemented)
+- [x] Retire credits — prepare → Freighter sign → submit, with user-decline detection
+- [x] Marketplace buy — prepare → Freighter sign → submit, with user-decline detection
+- [x] Governance vote — prepare → Freighter sign → submit, with user-decline detection
+
+### Testing (store layer — thorough)
+- [x] `AuthEffects` spec, `SensorsEffects` spec, `RetirementEffects` spec
+- [x] `MarketplaceEffects` spec (comprehensive), `GovernanceEffects` spec, `FarmersEffects` spec
 - [x] `CreditsReducer` spec
 - [x] `CacheInvalidationEffects` spec, `CacheInvalidationService` spec
 - [x] `LoadingStateHelper` spec, `LoadingStateSelector` spec
 - [x] `AuthGuard` spec, `RoleGuard` spec
 - [x] `CertificatePdfService` spec
+- [x] Feature component smoke specs (34 spec files — all components instantiate cleanly)
 
 ---
 
 ## 🚧 In Progress
 
-- [ ] **Backend API wiring** — replace remaining mock/stub data in feature components with real NgRx dispatch + selector bindings (store layer is done; UI components need to be connected)
-- [ ] **Stellar transaction signing** — complete the retire-credits and marketplace buy/sell transaction flows end-to-end (service and store are ready; needs integration testing against testnet)
-- [ ] **WebSocket live data in UI** — connect real-time sensor readings from the store to the sensor dashboard and dashboard alert widgets
-- [ ] **Unit test coverage** — bring overall coverage to ≥ 80%; remaining gaps are feature components and shared components
+- [ ] **WebSocket connection lifecycle** — `WebsocketService.connect()` is never called anywhere; socket never opens; all real-time sensor readings and dashboard alerts are silently dead
+- [ ] **Toast notification renderer** — `NotificationService` pushes to a `BehaviorSubject` consumed by all effects, but no component renders toasts on screen; every `success`/`error`/`warning` fires into the void
+- [ ] **Unit test coverage ≥ 80%** — 34 spec files exist but most feature component specs contain only a `should create` smoke test; component behavioural coverage is the remaining gap
+- [ ] **`SensorsDashboard` store bypass** — calls `SensorsService` directly and dispatches success/failure actions itself, bypassing the effect; uses unsafe `(state as any).sensors` cast
 
 ---
 
 ## 📋 Planned
 
 ### v1.0 — Production Release
-- [ ] End-to-end tests (Playwright) for critical user journeys: login → retire credits, marketplace buy
-- [ ] Accessibility audit (WCAG 2.1 AA) — verify ARIA labels, focus trapping, live regions, keyboard navigation
-- [ ] Production environment configuration (`environment.prod.ts` with real contract addresses)
-- [ ] Docker image + nginx config (SPA routing, WebSocket proxy, static asset caching)
-- [ ] CI/CD pipeline (GitHub Actions: lint → test → build → deploy)
-- [ ] PWA service worker (`ngsw-config.json` exists — needs runtime testing and cache strategy tuning)
-- [ ] Performance: virtual scrolling (`@angular/cdk`) for sensor data tables and retirement history
+- [ ] **Fix WebSocket connection lifecycle** — open socket after login/rehydration, close on logout, fix handler-leak in `on<T>()`, remove double-subscription in `SensorsDashboard`
+- [ ] **Toast renderer component** — render `NotificationService.notifications$` as dismissible on-screen toasts in `DefaultLayoutComponent`
+- [ ] **`environment.prod.ts`** — file does not exist; CI falls back to `environment.ts.example`; all four Stellar contract addresses are `REPLACE_WITH_DEPLOYED_ADDRESS` placeholders
+- [ ] **PWA authenticated cache safety** — `ngsw-config.json` caches `/credits/**` and `/analytics/**` with 1-day TTL keyed on URL only; removes cross-session data exposure on shared devices; add `Cache-Control: no-store` for authenticated endpoints in `ApiService`
+- [ ] **`CacheInvalidationEffects` pagination reset fix** — replace hardcoded `page: 1` dispatches with stale-flag approach; fix missing `loadFarmerOverview` in farmers invalidation set
+- [ ] **Wallet address persistence across reloads** — `WalletState.address` is always `null` after hard refresh; extend `rehydrateSession$` to call `walletService.checkConnection()`; create `WalletEffects` with `onAddressChange`/`onNetworkChange` registration
+- [ ] **Extract shared `isUserDeclined` wallet util** — `isUserDeclined()` copy-pasted in `RetirementEffects`, `MarketplaceEffects`, `GovernanceEffects`
+- [ ] **BMP practice enrollment wired to store/API** — `FarmerPracticesComponent` uses hardcoded local data; needs `enrollPractice`/`unenrollPractice` actions, effect, and service method
+- [ ] **End-to-end tests (Playwright)** — zero e2e setup; critical journeys: login → retire credits, marketplace buy
+- [ ] **Accessibility audit (WCAG 2.1 AA)** — no axe tooling; `aria-live` regions missing on real-time components; keyboard navigation unverified
+- [ ] **Performance: virtual scrolling** — no `@angular/cdk/scrolling` usage yet; needed for sensor data tables and retirement history at scale
 
 ### v1.1
-- [ ] Light mode theme (toggle exists in store; CSS variables defined but not fully applied)
-- [ ] Multi-language support (i18n — Angular `@angular/localize`)
-- [ ] Notifications centre (in-app notification preferences + email opt-in settings)
-- [ ] Advanced marketplace: candlestick price chart, order history CSV export
-- [ ] Farmer portal: edge-of-field sensor visualisations (sensor data linked to parcels)
-- [ ] Mobile-responsive layout pass — optimise sidebar, tables, and charts for small screens
+- [ ] **Light mode theme** — toggle is store-wired and CSS custom properties exist; preference not persisted to `localStorage` (resets to dark on every reload); component-level `[data-theme="light"]` coverage incomplete
+- [ ] **Notifications centre** — header bell icon does nothing on click; needs in-app notification panel with read/unread state, `markNotificationsRead` dispatch, and email opt-in preferences
+- [ ] **Mobile-responsive layout** — sidebar, data tables, and Chart.js canvases not optimised for small screens
+- [ ] **Farmer portal: BMP edge-of-field sensor visualisations** — sensor readings linked to individual parcels, per-parcel `SensorChart` instances
+- [ ] **Marketplace: order history CSV export** — export filled/cancelled orders from the order book view
+- [ ] **Multi-language support (i18n)** — Angular `@angular/localize`; no strings extracted yet
 
 ### v1.2+
-- [ ] Governance: on-chain vote submission via Freighter (UI ready; needs Soroban contract integration)
-- [ ] ESG report PDF export (multi-retirement summary, similar to certificate-pdf pattern)
-- [ ] Multi-wallet support (LOBSTR, xBull)
-- [ ] Analytics dashboard for oracle operators (submission history, node health trends)
-- [ ] Bundle analysis and optimisation (`webpack-bundle-analyzer` pass, CDN offload for Chart.js / Leaflet)
+- [ ] **ESG report PDF export** — multi-retirement summary PDF (pattern established by `CertificatePdfService`)
+- [ ] **Multi-wallet support** — LOBSTR, xBull alongside Freighter
+- [ ] **Analytics dashboard for oracle operators** — submission history, node health trends, uptime charts
+- [ ] **Bundle analysis and optimisation** — `webpack-bundle-analyzer` pass; evaluate CDN offload for Chart.js / Leaflet; deferred loading for pdfmake
 
 ---
 
 ## ⚠️ Known Limitations
 
-- Feature components render store data but many are not yet dispatching real load actions on init — backend wiring is the primary remaining gap.
-- The Stellar contract addresses in `environment.ts` are testnet placeholders; mainnet deployment requires updating all four contract addresses.
-- Light mode toggle is wired in the store and CSS custom properties are defined, but the `[data-theme="light"]` overrides are not fully propagated across all components.
-- Mobile layout is not optimised — the app is designed primarily for desktop dashboards.
-- The wallet store's effects (connect/disconnect) dispatch actions but do not yet persist the wallet address across page reloads.
-- No CI pipeline is configured yet; all lint, test, and build checks must be run locally.
-- `ngsw-config.json` is present but the service worker has not been tested for cache correctness against the real backend API.
+- **Real-time data is dead** — `WebsocketService.connect()` is never called; sensor readings and dashboard alerts do not stream until the WebSocket lifecycle is fixed.
+- **No toasts on screen** — all effect notifications (`NotificationService.success/error/warning`) are silently queued but never rendered; users see no feedback on any action result.
+- **Wallet address lost on reload** — `WalletState.address` is always `null` after a page refresh even with a valid session; header shows "Connect Wallet" for an already-authenticated user.
+- **No `environment.prod.ts`** — CI uses `environment.ts.example` as a stand-in; all four Stellar contract addresses are `REPLACE_WITH_DEPLOYED_ADDRESS` placeholders.
+- **PWA cache is unsafe for production** — service worker caches authenticated endpoints with a 1-day TTL keyed on URL only; cross-user data exposure risk on shared devices.
+- **Light mode preference resets on reload** — not persisted to `localStorage`; `isDarkMode` always initialises to `true`.
+- **Mobile layout unoptimised** — designed primarily for desktop dashboards; tables, charts, and sidebar overflow on small screens.
+- **`SensorsDashboard` bypasses the store** — uses `(state as any).sensors` unsafe cast and calls the HTTP service directly, breaking the unidirectional data-flow contract.
 
 ---
 
