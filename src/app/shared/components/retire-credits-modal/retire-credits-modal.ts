@@ -92,6 +92,7 @@ interface Step {
               min="0"
               step="any"
             />
+            <p *ngIf="amountError" class="text-xs text-red-600 mb-1">{{ amountError }}</p>
             <p class="text-xs text-slate-400">
               Available balance: {{ availableBalance | creditAmount }}
             </p>
@@ -203,16 +204,40 @@ export class RetireCreditsModalComponent {
     return this.projects.find((p) => p.id === this.selectedProjectId)?.balance || '0';
   }
 
+  get amountError(): string | null {
+    const amount = this.toStroops(this.amount);
+    if (amount === null || amount <= 0n) return null;
+    const balance = this.toStroops(this.availableBalance);
+    return balance !== null && amount > balance
+      ? `Exceeds available balance of ${this.availableBalance}`
+      : null;
+  }
+
   get canProceed(): boolean {
     switch (this.currentStep) {
       case 0:
         return !!this.selectedProjectId;
       case 1:
-        return !!this.amount && parseFloat(this.amount) > 0;
+        return !!this.amount && parseFloat(this.amount) > 0 && this.amountError === null;
       case 2:
         return !!this.purpose;
       default:
         return true;
+    }
+  }
+
+  private toStroops(value: string | number | null): bigint | null {
+    if (value === null || value === undefined) return null;
+    const text = typeof value === 'number' ? value.toFixed(7) : value.trim();
+    if (text === '') return null;
+    const [whole = '0', frac = ''] = text.split('.');
+    const wholePart = whole === '' ? '0' : whole;
+    const fracPart = (frac + '0000000').slice(0, 7);
+    if (!/^\d+$/.test(wholePart) || !/^\d+$/.test(fracPart)) return null;
+    try {
+      return BigInt(wholePart) * 10_000_000n + BigInt(fracPart);
+    } catch {
+      return null;
     }
   }
 
