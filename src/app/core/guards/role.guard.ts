@@ -1,4 +1,4 @@
-import { inject } from '@angular/core';
+import { inject, isDevMode } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivateFn, Router, UrlTree } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Observable } from 'rxjs';
@@ -17,6 +17,8 @@ import { AppState } from '../store/app.state';
  * Must be used after AuthGuard so that auth.user is guaranteed to be present
  * when RoleGuard runs.  If the user's role is not in data.roles, they are
  * redirected to /dashboard.
+ * Missing or empty role configuration is treated as a route misconfiguration:
+ * the guard warns in development and blocks access.
  *
  * The guard reads auth.user.role from the NgRx store — the single source of
  * truth for session state.
@@ -28,6 +30,10 @@ export const RoleGuard: CanActivateFn = (
   const router = inject(Router);
 
   const allowedRoles: UserRole[] = route.data?.['roles'] ?? [];
+
+  if (isDevMode() && allowedRoles.length === 0) {
+    console.warn('[RoleGuard] Route has no allowed roles configured. All users will be blocked.');
+  }
 
   return store.select(selectCurrentUserRole).pipe(
     take(1),

@@ -25,6 +25,10 @@ const buildUser = (role: UserRole) => ({
 describe('RoleGuard', () => {
   let store: Store<AppState>;
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
@@ -40,11 +44,11 @@ describe('RoleGuard', () => {
     store = TestBed.inject(Store);
   });
 
-  function buildRoute(roles: UserRole[]): ActivatedRouteSnapshot {
-    return { data: { roles } } as unknown as ActivatedRouteSnapshot;
+  function buildRoute(roles?: UserRole[]): ActivatedRouteSnapshot {
+    return { data: roles ? { roles } : {} } as unknown as ActivatedRouteSnapshot;
   }
 
-  function executeGuard(roles: UserRole[]): Promise<boolean | UrlTree> {
+  function executeGuard(roles?: UserRole[]): Promise<boolean | UrlTree> {
     const route = buildRoute(roles);
     return TestBed.runInInjectionContext(async () => {
       const result = RoleGuard(route, {} as RouterStateSnapshot);
@@ -96,15 +100,29 @@ describe('RoleGuard', () => {
     expect((result as UrlTree).toString()).toBe('/dashboard');
   });
 
-  it('allows access when the route has no role requirements', async () => {
+  it('warns and blocks when the route has an empty roles array', async () => {
     store.dispatch(AuthActions.loginSuccess({ user: buildUser(UserRole.BUYER), token: 't' }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    // Empty roles array → guard should pass (no restriction)
     const result = await executeGuard([]);
 
-    // With an empty allowedRoles list, no role can match — this is an
-    // edge-case that should be treated as "misconfigured route". Guard blocks.
-    // This test documents the current behaviour explicitly.
+    // Empty roles are a route misconfiguration. The guard deliberately fails
+    // closed while warning developers why every user is being blocked.
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[RoleGuard] Route has no allowed roles configured. All users will be blocked.',
+    );
+    expect(result).toBeInstanceOf(UrlTree);
+  });
+
+  it('warns and blocks when the route has no roles configured', async () => {
+    store.dispatch(AuthActions.loginSuccess({ user: buildUser(UserRole.ADMIN), token: 't' }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = await executeGuard();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[RoleGuard] Route has no allowed roles configured. All users will be blocked.',
+    );
     expect(result).toBeInstanceOf(UrlTree);
   });
 });
