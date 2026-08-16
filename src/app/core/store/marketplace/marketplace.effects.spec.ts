@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideStore } from '@ngrx/store';
+import { getEffectsMetadata } from '@ngrx/effects';
 import { provideMockActions } from '@ngrx/effects/testing';
 import { Subject, firstValueFrom } from 'rxjs';
 import { Action } from '@ngrx/store';
@@ -19,7 +20,6 @@ import {
 import { WalletService } from '../../services/wallet.service';
 import { NotificationService } from '../../services/notification.service';
 import * as MarketplaceActions from './marketplace.actions';
-import * as CreditsActions from '../credits/credits.actions';
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 
@@ -424,27 +424,12 @@ describe('MarketplaceEffects', () => {
     });
   });
 
-  // ── Buy flow: cross-slice invalidation ──────────────────────────────────────
+  // ── Buy flow: confirmed notification ────────────────────────────────────────
 
-  describe('buyConfirmed$ — cross-slice invalidation', () => {
-    it('dispatches loadListings and loadPortfolio after a confirmed purchase', async () => {
-      const actionsPromise = new Promise<Action[]>((resolve) => {
-        const seen: Action[] = [];
-        effects.buyConfirmed$.subscribe({
-          next: (a) => {
-            seen.push(a);
-            if (seen.length === 2) resolve(seen);
-          },
-        });
-      });
-
-      actions$.next(MarketplaceActions.buyConfirmed({ listing: mockConfirmedPurchase }));
-      const dispatched = await actionsPromise;
-
-      expect(dispatched).toEqual([
-        MarketplaceActions.loadListings({ params: {} }),
-        CreditsActions.loadPortfolio(),
-      ]);
+  describe('buyConfirmed$ — notification', () => {
+    it('leaves cache refresh dispatching to CacheInvalidationEffects', () => {
+      const metadata = getEffectsMetadata(effects);
+      expect(metadata['buyConfirmed$']?.dispatch).toBe(false);
     });
 
     it('shows a success notification containing the amount', async () => {

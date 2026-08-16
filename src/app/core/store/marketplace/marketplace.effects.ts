@@ -2,10 +2,9 @@ import { inject, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { of, from } from 'rxjs';
-import { switchMap, exhaustMap, map, mergeMap, catchError, tap } from 'rxjs/operators';
+import { switchMap, exhaustMap, map, catchError, tap } from 'rxjs/operators';
 
 import * as MarketplaceActions from './marketplace.actions';
-import * as CreditsActions from '../credits/credits.actions';
 import { MarketplaceService } from '../../services/marketplace.service';
 import { WalletService } from '../../services/wallet.service';
 import { NotificationService } from '../../services/notification.service';
@@ -200,24 +199,21 @@ export class MarketplaceEffects {
   /**
    * On confirmed purchase:
    *   - Show a success toast.
-   *   - Refresh the listings list (the purchased listing is now filled).
-   *   - Invalidate the credits portfolio so the buyer's new balance is
-   *     reflected without a manual refresh (cross-slice sync).
+   *   - Leave listings and portfolio refreshes to CacheInvalidationEffects,
+   *     which preserves the current listings pagination.
    */
-  buyConfirmed$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(MarketplaceActions.buyConfirmed),
-      tap(({ listing }) => {
-        this.notificationService.success(
-          'Purchase complete',
-          `Successfully purchased ${listing.amount} credits from ${listing.projectName}`,
-        );
-      }),
-      mergeMap(() => [
-        MarketplaceActions.loadListings({ params: {} }),
-        CreditsActions.loadPortfolio(),
-      ]),
-    ),
+  buyConfirmed$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(MarketplaceActions.buyConfirmed),
+        tap(({ listing }) => {
+          this.notificationService.success(
+            'Purchase complete',
+            `Successfully purchased ${listing.amount} credits from ${listing.projectName}`,
+          );
+        }),
+      ),
+    { dispatch: false },
   );
 
   /**
